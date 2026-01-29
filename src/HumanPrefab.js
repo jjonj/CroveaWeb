@@ -64,15 +64,14 @@ export class HumanPrefab {
         this.group.add(mouth);
 
         // HAIR (Placeholders)
+        const hairMat = new THREE.MeshStandardMaterial({ color: 0x2b1d0e });
         if (traits.hairStyle === 'long') {
             const hairGeo = new THREE.BoxGeometry(22, 60, 22);
-            const hairMat = new THREE.MeshStandardMaterial({ color: 0x000000 });
             const hair = new THREE.Mesh(hairGeo, hairMat);
             hair.position.set(0, 165 * h, -5);
             this.group.add(hair);
         } else if (traits.hairStyle === 'short') {
             const hairGeo = new THREE.BoxGeometry(22, 10, 22);
-            const hairMat = new THREE.MeshStandardMaterial({ color: 0x000000 });
             const hair = new THREE.Mesh(hairGeo, hairMat);
             hair.position.set(0, 165 * h + 24, 0);
             this.group.add(hair);

@@ -47,10 +47,16 @@ window.addEventListener('keyup', (e) => {
 const clock = new THREE.Clock();
 const raycaster = new THREE.Raycaster();
 
+// Audio Setup
+const meltSound = new Audio('melteffect.wav');
+meltSound.loop = true;
+
 function animate() {
     requestAnimationFrame(animate);
     const delta = Math.min(clock.getDelta(), 0.1);
     const time = performance.now() * 0.001;
+
+    const playerMoving = moveF || moveB || moveL || moveR;
 
     if (controls.isLocked && !logic.getMovementDisabled()) {
         velocity.x -= velocity.x * 10 * delta; velocity.z -= velocity.z * 10 * delta;
@@ -135,6 +141,11 @@ function animate() {
             h.quaternion.slerp(targetQuaternion, delta * 10); // Faster interpolation (was 3)
 
             if (effectiveDist < 600) {
+                // Shake in fear
+                const shakeAmount = 1.5;
+                h.position.x += (Math.random() - 0.5) * shakeAmount;
+                h.position.z += (Math.random() - 0.5) * shakeAmount;
+
                 // Reset animations when stopped
                 h.userData.legs[0].rotation.x = 0;
                 h.userData.legs[1].rotation.x = 0;
@@ -249,10 +260,19 @@ function animate() {
         }
     }
 
+    if (activeGazeDot && !playerMoving) {
+        if (meltSound.paused) meltSound.play();
+    } else {
+        if (!meltSound.paused) {
+            meltSound.pause();
+            meltSound.currentTime = 0;
+        }
+    }
+
     if (!activeGazeDot && !logic.getMovementDisabled()) gazeBar.style.display = 'none';
 
     logic.tentacles.forEach((t, i) => {
-        if (activeGazeDot) {
+        if (activeGazeDot && !playerMoving) {
             t.mesh.visible = true; t.reach = THREE.MathUtils.lerp(t.reach, 1.0, delta * 1.5);
             const start = camera.position.clone();
             const side = new THREE.Vector3(i<2?-140:140, -100+(i%2)*200, -100).applyQuaternion(camera.quaternion);

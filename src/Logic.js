@@ -111,14 +111,9 @@ export function createLogic(scene, camera, glowTexture) {
 
     async function triggerPhaseTransition(setupEnv) {
         const fade = document.getElementById('screen-fade'); fade.style.opacity = '1';
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, 1000));
         
-        if (currentPhase === PHASES.VOID_PAIR) {
-            // Start fade almost immediately in Phase 1
-            setTimeout(() => triggerPhaseTransition(setupEnv), 500);
-        } else {
-            currentPhase = PHASES.CAVE_GROUP;
-        }
+        if (currentPhase === PHASES.VOID_PAIR) currentPhase = PHASES.CAVE_GROUP;
         else if (currentPhase === PHASES.CAVE_GROUP) currentPhase = PHASES.FINAL_FAMILY;
         else if (currentPhase === PHASES.FINAL_FAMILY) currentPhase = PHASES.DAWN;
 
