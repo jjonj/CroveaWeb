@@ -27,7 +27,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        // --- POINTER LOCK CONTROLS (UMD-ish) ---
+        // --- POINTER LOCK CONTROLS ---
         class PointerLockControls {
             constructor(camera, element) {
                 this.camera = camera;
@@ -244,12 +244,12 @@
             const gazeBar = document.getElementById('gaze-container');
             const gazeFill = document.getElementById('gaze-fill');
 
-            const distToGroup = new THREE.Vector3();
+            const groupCenterPos = new THREE.Vector3();
             if (humans.length > 0) {
-                humans.forEach(h => distToGroup.add(h.position));
-                distToGroup.divideScalar(humans.length);
+                humans.forEach(h => groupCenterPos.add(h.position));
+                groupCenterPos.divideScalar(humans.length);
             }
-            const groupDist = distToGroup.distanceTo(camera.position);
+            const groupDist = groupCenterPos.distanceTo(camera.position);
 
             for (let i = dots.length - 1; i >= 0; i--) {
                 const dot = dots[i];
@@ -258,16 +258,13 @@
                 const isPhase1 = currentPhase === PHASES.VOID_PAIR;
                 const effectiveDist = isPhase1 ? groupDist : dist;
                 
-                // PULSE SPEED INCREASES WHEN CLOSE
+                // PULSE
                 const pulseSpeed = Math.max(1.5, 8 - (dist * 0.005));
                 dot.userData.phase += delta * pulseSpeed;
                 const t = dot.userData.phase;
-                
-                // Double peak "lub-dub" - Sharpened
-                const p1 = Math.pow(Math.max(0, Math.sin(t)), 20); // Sharper first beat
-                const p2 = Math.pow(Math.max(0, Math.sin(t - 0.7)), 20) * 0.5; // Distinct second beat
+                const p1 = Math.pow(Math.max(0, Math.sin(t)), 20);
+                const p2 = Math.pow(Math.max(0, Math.sin(t - 0.7)), 20) * 0.5;
                 const pulseFactor = p1 + p2;
-                
                 dot.material.opacity = 0.3 + pulseFactor * 0.7;
                 dot.scale.setScalar(60 + pulseFactor * 140);
                 dot.position.copy(h.position); dot.position.y = h.position.y + (dot.userData.heartHeight * h.scale.y);
@@ -279,7 +276,6 @@
                     h.lookAt(tempLookAt);
                     
                     if (effectiveDist < 600) {
-                        // Reset animations when stopped
                         h.userData.legs[0].rotation.x = 0;
                         h.userData.legs[1].rotation.x = 0;
                         h.userData.arms[0].rotation.x = 0;
@@ -295,9 +291,36 @@
                         } else { dot.userData.gazeTime = 0; }
                     } else { 
                         dot.userData.gazeTime = 0; 
-                        
-                        // FLEEING LOGIC
-// ... later in the file ...
+                        let moveVec = new THREE.Vector3();
+                        if (effectiveDist < 12000) {
+                            const fleeDir = (isPhase1 ? groupCenterPos.clone() : h.position.clone()).sub(camera.position).setY(0).normalize();
+                            moveVec.add(fleeDir.multiplyScalar(250));
+                            const other = humans.find(otherH => otherH !== h);
+                            if (other) {
+                                const toOther = other.position.clone().sub(h.position).setY(0);
+                                if (toOther.length() > 150) moveVec.add(toOther.normalize().multiplyScalar(100));
+                                else if (toOther.length() < 80) moveVec.add(toOther.normalize().multiplyScalar(-100));
+                            }
+                            h.userData.legPhase = (h.userData.legPhase || 0) + delta * 15;
+                            h.userData.legs[0].rotation.x = Math.sin(h.userData.legPhase) * 0.4;
+                            h.userData.legs[1].rotation.x = Math.sin(h.userData.legPhase + Math.PI) * 0.4;
+                            h.userData.arms[0].rotation.x = Math.sin(h.userData.legPhase + Math.PI) * 0.3;
+                            h.userData.arms[1].rotation.x = Math.sin(h.userData.legPhase) * 0.3;
+                            h.lookAt(camera.position.clone().setY(h.position.y)); h.rotation.y += Math.PI;
+                        } else {
+                            h.userData.legs[0].rotation.x = 0; h.userData.legs[1].rotation.x = 0;
+                            h.userData.arms[0].rotation.x = 0; h.userData.arms[1].rotation.x = 0;
+                        }
+                        h.position.add(moveVec.multiplyScalar(delta));
+                    }
+                }
+
+                if (h.userData.isMelting) {
+                    activeGazeDot = dot;
+                    h.userData.consumption = Math.min(1.0, h.userData.consumption + delta * 0.2);
+                    h.scale.y = 1.0 - (h.userData.consumption * 0.95);
+                    h.scale.x = 1.0 + (h.userData.consumption * 0.6);
+                    h.position.y = -(h.userData.consumption * 160); 
                     if (h.userData.consumption >= 1.0) {
                         scene.remove(dot); scene.remove(h); dots.splice(i, 1); humans.splice(humans.indexOf(h), 1);
                         movementDisabled = false; globalMeltHuman = null;
@@ -307,7 +330,7 @@
                             else updateNarrative("The survivor stands alone.");
                         }
                     }
-
+                }
             }
 
             if (!activeGazeDot && !movementDisabled) gazeBar.style.display = 'none';
@@ -331,7 +354,6 @@
                     if (t.reach < 0.05) t.mesh.visible = false;
                 }
             });
-
             renderer.render(scene, camera);
         }
 
