@@ -143,23 +143,44 @@ function animate() {
                 // MOVEMENT LOGIC
                 let moveVec = new THREE.Vector3();
                 
-                if (!logic.debugActive) {
+                if (!logic.debugActive && dist < 8000) {
                     // Flee from player together
-                    const fleeDir = groupCenter.clone().sub(camera.position).setY(0).normalize();
-                    moveVec.add(fleeDir.multiplyScalar(120)); // Base flee speed
+                    const fleeDir = (logic.currentPhase === PHASES.VOID_PAIR ? groupCenter.clone() : h.position.clone()).sub(camera.position).setY(0).normalize();
+                    moveVec.add(fleeDir.multiplyScalar(250)); // Increased flee speed
 
-                    // Cohesion / Separation
+                    // Cohesion / Separation (Sticking together)
                     const other = logic.humans.find(otherH => otherH !== h);
                     if (other) {
                         const toOther = other.position.clone().sub(h.position).setY(0);
                         const distToOther = toOther.length();
                         const targetDist = 150; // 1.5m
                         if (distToOther > targetDist) {
-                            moveVec.add(toOther.normalize().multiplyScalar(60)); // Move towards if too far
+                            moveVec.add(toOther.normalize().multiplyScalar(100)); // Move towards if too far
                         } else if (distToOther < 80) {
-                            moveVec.add(toOther.normalize().multiplyScalar(-60)); // Move away if too close
+                            moveVec.add(toOther.normalize().multiplyScalar(-100)); // Move away if too close
                         }
                     }
+
+                    // Leg animation while fleeing
+                    h.userData.legPhase = (h.userData.legPhase || 0) + delta * 15;
+                    h.userData.legs[0].rotation.x = Math.sin(h.userData.legPhase) * 0.4;
+                    h.userData.legs[1].rotation.x = Math.sin(h.userData.legPhase + Math.PI) * 0.4;
+                    h.userData.arms[0].rotation.x = Math.sin(h.userData.legPhase + Math.PI) * 0.3;
+                    h.userData.arms[1].rotation.x = Math.sin(h.userData.legPhase) * 0.3;
+
+                    // Rotate to face AWAY from player while fleeing
+                    const targetQuaternion = new THREE.Quaternion();
+                    const tempLookAt = camera.position.clone(); tempLookAt.y = h.position.y;
+                    h.lookAt(tempLookAt);
+                    h.rotation.y += Math.PI; 
+                    targetQuaternion.copy(h.quaternion);
+                    h.quaternion.slerp(targetQuaternion, delta * 3);
+                } else {
+                    // Reset animations if not fleeing
+                    h.userData.legs[0].rotation.x = 0;
+                    h.userData.legs[1].rotation.x = 0;
+                    h.userData.arms[0].rotation.x = 0;
+                    h.userData.arms[1].rotation.x = 0;
                 }
 
                 h.position.add(moveVec.multiplyScalar(delta));
