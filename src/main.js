@@ -77,14 +77,16 @@ function animate() {
         const h = dot.userData.human;
         const dist = h.position.distanceTo(camera.position);
         
-        // Heartbeat pulse speed increases with distance
-        const pulseSpeed = 2 + (dist * 0.005);
+        // Heartbeat pulse speed increases as distance decreases (faster when close)
+        const pulseSpeed = Math.max(1.5, 8 - (dist * 0.005));
         dot.userData.phase += delta * pulseSpeed;
         const t = dot.userData.phase;
-        // Two distinct peaks for "lub-dub"
-        const p1 = Math.pow(Math.max(0, Math.sin(t)), 12); // Sharper first beat
-        const p2 = Math.pow(Math.max(0, Math.sin(t - 0.5)), 12) * 0.6; // Softer delayed beat
+        
+        // Two distinct peaks for "lub-dub" - Sharpened for better definition
+        const p1 = Math.pow(Math.max(0, Math.sin(t)), 20); // Sharper first beat
+        const p2 = Math.pow(Math.max(0, Math.sin(t - 0.7)), 20) * 0.5; // Distinct second beat
         const pulseFactor = p1 + p2;
+        
         dot.material.opacity = 0.3 + pulseFactor * 0.7; // Modulate opacity
         dot.scale.setScalar(60 + pulseFactor * 140); // Modulate size
         dot.position.copy(h.position); dot.position.y = h.position.y + (dot.userData.heartHeight * h.scale.y);

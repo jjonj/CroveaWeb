@@ -249,14 +249,14 @@
                 const h = dot.userData.human;
                 const dist = h.position.distanceTo(camera.position);
                 
-                // PULSE SPEED INCREASE WITH DISTANCE
-                const pulseSpeed = 2 + (dist * 0.005);
+                // PULSE SPEED INCREASES WHEN CLOSE
+                const pulseSpeed = Math.max(1.5, 8 - (dist * 0.005));
                 dot.userData.phase += delta * pulseSpeed;
                 const t = dot.userData.phase;
                 
-                // Double peak "lub-dub"
-                const p1 = Math.pow(Math.max(0, Math.sin(t)), 12); // Sharper first beat
-                const p2 = Math.pow(Math.max(0, Math.sin(t - 0.5)), 12) * 0.6; // Softer delayed beat
+                // Double peak "lub-dub" - Sharpened
+                const p1 = Math.pow(Math.max(0, Math.sin(t)), 20); // Sharper first beat
+                const p2 = Math.pow(Math.max(0, Math.sin(t - 0.7)), 20) * 0.5; // Distinct second beat
                 const pulseFactor = p1 + p2;
                 
                 dot.material.opacity = 0.3 + pulseFactor * 0.7;
