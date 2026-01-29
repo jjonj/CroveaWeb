@@ -1,0 +1,9 @@
+body { margin: 0; overflow: hidden; background: #000; font-family: 'Cinzel', serif; color: #fff; cursor: crosshair; }
+#canvas-container { width: 100vw; height: 100vh; }
+#ui-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; padding: 40px; box-sizing: border-box; z-index: 10; background: radial-gradient(circle, transparent 40%, rgba(0,0,0,1) 100%); transition: opacity 2s; }
+#narrative { text-align: center; font-size: 22px; letter-spacing: 8px; text-transform: uppercase; color: rgba(255, 255, 255, 0.3); }
+#crosshair { position: absolute; top: 50%; left: 50%; width: 12px; height: 12px; border: 1px solid rgba(255, 0, 0, 0.8); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+#instructions { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); font-size: 12px; letter-spacing: 2px; opacity: 0.5; text-align: center; }
+#screen-fade { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: black; pointer-events: none; opacity: 0; z-index: 100; transition: opacity 2s; }
+#gaze-container { position: absolute; top: 55%; left: 50%; width: 150px; height: 4px; background: rgba(255, 0, 0, 0.1); transform: translateX(-50%); display: none; border: 1px solid rgba(255, 255, 255, 0.1); }
+#gaze-fill { width: 0%; height: 100%; background: #ff0000; box-shadow: 0 0 10px #ff0000; }

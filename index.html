@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wartribes | The Inescapable Gaze</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="screen-fade"></div>
+    <div id="canvas-container"></div>
+    <div id="gaze-container"><div id="gaze-fill"></div></div>
+    <div id="ui-overlay"><div id="narrative">Follow the terror...</div></div>
+    <div id="crosshair"></div>
+    <div id="instructions">WASD TO MOVE | FACE THEM AT 3M TO MELT | F TO TOGGLE FOG</div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module" src="src/main.js"></script>
+</body>
+</html>
