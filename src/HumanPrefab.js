@@ -41,20 +41,25 @@ export class HumanPrefab {
         const head = new THREE.Mesh(new THREE.BoxGeometry(20 * (traits.roundFace ? 1.2 : 1.0), 24, 20), mat);
         head.position.y = 165 * h + 12 * h; this.group.add(head);
 
-        // FACIAL FEATURES
+        // UNIQUE FACIAL FEATURES
+        const facialSeed = Math.random();
         const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
-        const eyeGeo = new THREE.BoxGeometry(4, 4, 2);
+        const eyeSize = 2 + (facialSeed * 3);
+        const eyeGeo = new THREE.BoxGeometry(eyeSize, eyeSize, 2);
         const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
-        eyeL.position.set(-5, head.position.y + 4, 10);
+        eyeL.position.set(-5 - (facialSeed * 2), head.position.y + 4, 10);
         const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
-        eyeR.position.set(5, head.position.y + 4, 10);
+        eyeR.position.set(5 + (facialSeed * 2), head.position.y + 4, 10);
         this.group.add(eyeL, eyeR);
 
-        const nose = new THREE.Mesh(new THREE.BoxGeometry(3, 6, 4), mat);
+        const noseSize = 2 + (Math.random() * 4);
+        const nose = new THREE.Mesh(new THREE.BoxGeometry(noseSize, 6, 4), mat);
         nose.position.set(0, head.position.y - 2, 11);
         this.group.add(nose);
 
-        const mouth = new THREE.Mesh(new THREE.BoxGeometry(8, 2, 2), eyeMat);
+        const mouthWidth = 6 + (Math.random() * 10);
+        const mouthHeight = 1 + (Math.random() * 3);
+        const mouth = new THREE.Mesh(new THREE.BoxGeometry(mouthWidth, mouthHeight, 2), eyeMat);
         mouth.position.set(0, head.position.y - 8, 10);
         this.group.add(mouth);
 

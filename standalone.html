@@ -68,11 +68,23 @@
         function createEnvironment(scene, camera) {
             const defaultFog = new THREE.FogExp2(0x000000, 0.0015);
             scene.fog = defaultFog;
-            const ambient = new THREE.AmbientLight(0xffffff, 0.05);
-            scene.add(ambient);
-            const playerLight = new THREE.PointLight(0xffffff, 1.5, 2000, 2);
+            
+            scene.add(new THREE.AmbientLight(0xffffff, 0.1));
+            const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.2);
+            scene.add(hemi);
+
+            const sun = new THREE.DirectionalLight(0xffffff, 0.3);
+            sun.position.set(500, 1000, 500);
+            scene.add(sun);
+
+            const playerLight = new THREE.PointLight(0xffffff, 1.0, 3000, 1);
             camera.add(playerLight);
             scene.add(camera);
+
+            const ground = new THREE.Mesh(new THREE.PlaneGeometry(40000, 40000), new THREE.MeshStandardMaterial({ color: 0xd2b48c, roughness: 1.0 }));
+            ground.rotation.x = -Math.PI / 2;
+            scene.add(ground);
+            
             return { defaultFog };
         }
 
@@ -128,6 +140,28 @@
 
                 const head = new THREE.Mesh(new THREE.BoxGeometry(20 * (traits.roundFace ? 1.2 : 1.0), 24, 20), mat);
                 head.position.y = 165 * h + 12 * h; this.group.add(head);
+
+                // UNIQUE FACIAL FEATURES
+                const facialSeed = Math.random();
+                const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+                const eyeSize = 2 + (facialSeed * 3);
+                const eyeGeo = new THREE.BoxGeometry(eyeSize, eyeSize, 2);
+                const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
+                eyeL.position.set(-5 - (facialSeed * 2), head.position.y + 4, 10);
+                const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
+                eyeR.position.set(5 + (facialSeed * 2), head.position.y + 4, 10);
+                this.group.add(eyeL, eyeR);
+
+                const noseSize = 2 + (Math.random() * 4);
+                const nose = new THREE.Mesh(new THREE.BoxGeometry(noseSize, 6, 4), mat);
+                nose.position.set(0, head.position.y - 2, 11);
+                this.group.add(nose);
+
+                const mouthWidth = 6 + (Math.random() * 10);
+                const mouthHeight = 1 + (Math.random() * 3);
+                const mouth = new THREE.Mesh(new THREE.BoxGeometry(mouthWidth, mouthHeight, 2), eyeMat);
+                mouth.position.set(0, head.position.y - 8, 10);
+                this.group.add(mouth);
 
                 this.heartHeight = 145 * h;
                 this.group.userData.legs = [legL, legR];
@@ -271,22 +305,34 @@
 
                 const isGazing = h.userData.hitSphere ? raycaster.intersectObject(h.userData.hitSphere).length > 0 : false;
 
-                if (!h.userData.isMelting && !movementDisabled) {
-                    const tempLookAt = camera.position.clone(); tempLookAt.y = h.position.y;
-                    h.lookAt(tempLookAt);
-                    
-                    if (effectiveDist < 600) {
-                        h.userData.legs[0].rotation.x = 0;
-                        h.userData.legs[1].rotation.x = 0;
-                        h.userData.arms[0].rotation.x = 0;
-                        h.userData.arms[1].rotation.x = 0;
+                if (h.userData.isEscaping) {
+                    const runDir = h.position.clone().sub(camera.position).setY(0).normalize();
+                    h.position.add(runDir.multiplyScalar(600 * delta));
+                    h.userData.legPhase = (h.userData.legPhase || 0) + delta * 20;
+                    h.userData.legs[0].rotation.x = Math.sin(h.userData.legPhase) * 0.4;
+                    h.userData.legs[1].rotation.x = Math.sin(h.userData.legPhase + Math.PI) * 0.4;
+                    h.userData.arms[0].rotation.x = Math.sin(h.userData.legPhase + Math.PI) * 0.3;
+                    h.userData.arms[1].rotation.x = Math.sin(h.userData.legPhase) * 0.3;
+                    h.lookAt(camera.position.clone().setY(h.position.y)); h.rotation.y += Math.PI;
+                    if (dist > 10000) {
+                        scene.remove(dot); scene.remove(h); dots.splice(i, 1); humans.splice(humans.indexOf(h), 1);
+                        if (dots.length === 0) { currentPhase++; spawn(scene, camera, glowTexture); movementDisabled = false; globalMeltHuman = null; }
+                    }
+                    continue;
+                }
 
+                if (!h.userData.isMelting && !movementDisabled) {
+                    h.lookAt(camera.position.clone().setY(h.position.y));
+                    if (effectiveDist < 600) {
+                        h.userData.legs[0].rotation.x = 0; h.userData.legs[1].rotation.x = 0;
+                        h.userData.arms[0].rotation.x = 0; h.userData.arms[1].rotation.x = 0;
                         if (isGazing && (!globalMeltHuman || globalMeltHuman === h)) {
                             activeGazeDot = dot; dot.userData.gazeTime += delta;
                             gazeBar.style.display = 'block'; gazeFill.style.width = (dot.userData.gazeTime/3*100)+'%';
                             if (dot.userData.gazeTime >= 3.0) {
                                 h.userData.isMelting = true; movementDisabled = true; globalMeltHuman = h;
                                 gazeBar.style.display = 'none';
+                                if (isPhase1) humans.forEach(otherH => { if(otherH !== h) otherH.userData.isEscaping = true; });
                             }
                         } else { dot.userData.gazeTime = 0; }
                     } else { 
@@ -324,11 +370,7 @@
                     if (h.userData.consumption >= 1.0) {
                         scene.remove(dot); scene.remove(h); dots.splice(i, 1); humans.splice(humans.indexOf(h), 1);
                         movementDisabled = false; globalMeltHuman = null;
-                        if (dots.length === 0) { 
-                            currentPhase++; 
-                            if (currentPhase < PHASES.DAWN) spawn(scene, camera, glowTexture); 
-                            else updateNarrative("The survivor stands alone.");
-                        }
+                        if (dots.length === 0) { currentPhase++; if (currentPhase < PHASES.DAWN) spawn(scene, camera, glowTexture); else updateNarrative("The survivor stands alone."); }
                     }
                 }
             }

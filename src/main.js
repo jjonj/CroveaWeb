@@ -97,10 +97,10 @@ function animate() {
         const isGazing = h.userData.hitSphere ? raycaster.intersectObject(h.userData.hitSphere).length > 0 : false;
 
         if (h.userData.isEscaping) {
-            const runDir = h.position.clone().sub(camera.position).normalize();
+            const runDir = h.position.clone().sub(camera.position).setY(0).normalize();
             h.position.add(runDir.multiplyScalar(600 * delta));
 
-            // Eased rotation towards/away from player
+            // Eased rotation away from player
             const targetQuaternion = new THREE.Quaternion();
             const tempLookAt = camera.position.clone(); tempLookAt.y = h.position.y;
             h.lookAt(tempLookAt); // Temporarily set rotation
@@ -110,12 +110,15 @@ function animate() {
 
             // Leg animation
             h.userData.legPhase = (h.userData.legPhase || 0) + delta * 20; // Animation speed
-            h.userData.legs[0].rotation.x = Math.sin(h.userData.legPhase) * 0.4; // Left leg forward
-            h.userData.legs[1].rotation.x = Math.sin(h.userData.legPhase + Math.PI) * 0.4; // Right leg backward
-            h.userData.arms[0].rotation.x = Math.sin(h.userData.legPhase + Math.PI) * 0.3; // Arms counter-swing
+            h.userData.legs[0].rotation.x = Math.sin(h.userData.legPhase) * 0.4;
+            h.userData.legs[1].rotation.x = Math.sin(h.userData.legPhase + Math.PI) * 0.4;
+            h.userData.arms[0].rotation.x = Math.sin(h.userData.legPhase + Math.PI) * 0.3;
             h.userData.arms[1].rotation.x = Math.sin(h.userData.legPhase) * 0.3;
 
-            if (dist > 3000) { scene.remove(dot); scene.remove(h); logic.dots.splice(i, 1); if (logic.dots.length === 0) logic.triggerPhaseTransition(setupEnvironment); }
+            if (dist > 10000) { // Despawn at 100m
+                scene.remove(dot); scene.remove(h); logic.dots.splice(i, 1); 
+                if (logic.dots.length === 0) logic.triggerPhaseTransition(setupEnvironment); 
+            }
             continue;
         }
 

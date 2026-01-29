@@ -5,20 +5,20 @@ export function createEnvironment(scene, camera) {
     const defaultFog = new THREE.FogExp2(0x000000, 0.0015);
     scene.fog = defaultFog;
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.1));
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.2);
     scene.add(hemi);
 
-    const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+    const sun = new THREE.DirectionalLight(0xffffff, 0.3);
     sun.position.set(500, 1000, 500);
     scene.add(sun);
 
     // Player light (Lantern effect)
-    const playerLight = new THREE.PointLight(0xffffff, 50, 2000, 1);
+    const playerLight = new THREE.PointLight(0xffffff, 1.0, 3000, 1);
     camera.add(playerLight);
     scene.add(camera);
 
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(40000, 40000), new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.8 }));
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(40000, 40000), new THREE.MeshStandardMaterial({ color: 0xd2b48c, roughness: 1.0 }));
     ground.rotation.x = -Math.PI / 2;
     scene.add(ground);
 
