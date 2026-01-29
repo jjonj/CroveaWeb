@@ -65,12 +65,7 @@ function animate() {
     // Handle local player human for final scene reflection
     if (logic.currentPhase === PHASES.DAWN) {
         if (!localPlayerHuman) {
-            localPlayerHuman = new HumanPrefab({
-                skinColor: 0xffdbac,
-                gender: 'female',
-                height: 1.0,
-                hairStyle: 'long'
-            });
+            localPlayerHuman = new HumanPrefab(logic.survivorTraits);
             scene.add(localPlayerHuman.group);
         }
         localPlayerHuman.group.position.copy(camera.position);
@@ -275,15 +270,13 @@ function animate() {
                 if (logic.currentPhase === PHASES.VOID_PAIR) {
                     setTimeout(() => logic.triggerPhaseTransition(setupEnvironment), 100);
                 } else {
-                    // If it's the final family, we only consume two
-                    const isFinalPhase = logic.currentPhase === PHASES.FINAL_FAMILY;
-                    if (logic.dots.length === 0 || (isFinalPhase && logic.dots.length === 1)) {
-                        if (isFinalPhase && logic.dots.length === 1) {
-                            // The last one escapes
-                            logic.dots[0].userData.human.userData.isEscaping = true;
-                        } else {
-                            logic.triggerPhaseTransition(setupEnvironment);
-                        }
+                    // In CAVE_GROUP, we transition when only 1 is left (the survivor)
+                    if (logic.currentPhase === PHASES.CAVE_GROUP && logic.dots.length === 1) {
+                        const survivorH = logic.dots[0].userData.human;
+                        logic.finalizeSurvivor(survivorH.userData.traits);
+                        logic.triggerPhaseTransition(setupEnvironment);
+                    } else if (logic.dots.length === 0) {
+                        logic.triggerPhaseTransition(setupEnvironment);
                     }
                 }
             }

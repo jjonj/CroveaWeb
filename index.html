@@ -6,6 +6,23 @@
     <title>Wartribes | The Inescapable Gaze</title>
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+    <script>
+        (function() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32; canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(16, 16, 2, 16, 16, 16);
+            grad.addColorStop(0, 'rgba(255, 0, 0, 1)');
+            grad.addColorStop(0.5, 'rgba(150, 0, 0, 0.5)');
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 32, 32);
+            const link = document.createElement('link');
+            link.rel = 'icon';
+            link.href = canvas.toDataURL('image/png');
+            document.head.appendChild(link);
+        })();
+    </script>
 </head>
 <body>
     <div id="screen-fade"></div>
