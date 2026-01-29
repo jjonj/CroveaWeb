@@ -106,7 +106,7 @@ function animate() {
             h.lookAt(tempLookAt); // Temporarily set rotation
             h.rotation.y += Math.PI; // Invert to look away
             targetQuaternion.copy(h.quaternion); // Store target
-            h.quaternion.slerp(targetQuaternion, delta * 3); // Interpolate
+            h.quaternion.slerp(targetQuaternion, delta * 10); // Faster interpolation (was 3)
 
             // Leg animation
             h.userData.legPhase = (h.userData.legPhase || 0) + delta * 20; // Animation speed
@@ -116,19 +116,23 @@ function animate() {
             h.userData.arms[1].rotation.x = Math.sin(h.userData.legPhase) * 0.3;
 
             if (dist > 10000) { // Despawn at 100m
-                scene.remove(dot); scene.remove(h); logic.dots.splice(i, 1); 
+                scene.remove(dot); scene.remove(h); 
+                logic.dots.splice(i, 1);
+                const hIdx = logic.humans.indexOf(h);
+                if (hIdx !== -1) logic.humans.splice(hIdx, 1);
+                
                 if (logic.dots.length === 0) logic.triggerPhaseTransition(setupEnvironment); 
             }
             continue;
         }
 
         if (!h.userData.isMelting && !logic.getMovementDisabled()) {
-            // Eased rotation towards player
+            // Eased rotation towards player (Increased speed for snappier feel)
             const targetQuaternion = new THREE.Quaternion();
             const tempLookAt = camera.position.clone(); tempLookAt.y = h.position.y;
             h.lookAt(tempLookAt); // Temporarily set rotation
             targetQuaternion.copy(h.quaternion); // Store target
-            h.quaternion.slerp(targetQuaternion, delta * 3); // Interpolate
+            h.quaternion.slerp(targetQuaternion, delta * 10); // Faster interpolation (was 3)
 
             if (effectiveDist < 600) {
                 // Reset animations when stopped
@@ -137,10 +141,7 @@ function animate() {
                 h.userData.arms[0].rotation.x = 0;
                 h.userData.arms[1].rotation.x = 0;
 
-                const fwd = new THREE.Vector3(0,0,1).applyQuaternion(h.quaternion);
-                const toP = camera.position.clone().sub(h.position).normalize();
-                
-                if (fwd.dot(toP) > 0.9 && isGazing && (!logic.getGlobalMeltHuman() || logic.getGlobalMeltHuman() === h)) {
+                if (isGazing && (!logic.getGlobalMeltHuman() || logic.getGlobalMeltHuman() === h)) {
                     activeGazeDot = dot; dot.userData.gazeTime += delta;
                     gazeBar.style.display = 'block'; gazeFill.style.width = (dot.userData.gazeTime/3*100)+'%';
                     if (dot.userData.gazeTime >= 3.0) {
@@ -151,24 +152,25 @@ function animate() {
                         }
                     }
                 } else { dot.userData.gazeTime = 0; }
-                            } else {
-                            // MOVEMENT LOGIC
-                            let moveVec = new THREE.Vector3();
-                            
-                            if (!logic.debugActive && effectiveDist < 12000) {
-                                // Flee from player together
-                                const fleeDir = (isPhase1 ? groupCenter.clone() : h.position.clone()).sub(camera.position).setY(0).normalize();                    moveVec.add(fleeDir.multiplyScalar(250)); // Increased flee speed
+            } else {
+                // MOVEMENT LOGIC
+                let moveVec = new THREE.Vector3();
+                
+                if (!logic.debugActive && effectiveDist < 12000) {
+                    // Flee from player together
+                    const fleeDir = (isPhase1 ? groupCenter.clone() : h.position.clone()).sub(camera.position).setY(0).normalize();
+                    moveVec.add(fleeDir.multiplyScalar(250)); 
 
                     // Cohesion / Separation (Sticking together)
                     const other = logic.humans.find(otherH => otherH !== h);
                     if (other) {
                         const toOther = other.position.clone().sub(h.position).setY(0);
                         const distToOther = toOther.length();
-                        const targetDist = 150; // 1.5m
+                        const targetDist = 150; 
                         if (distToOther > targetDist) {
-                            moveVec.add(toOther.normalize().multiplyScalar(100)); // Move towards if too far
+                            moveVec.add(toOther.normalize().multiplyScalar(100)); 
                         } else if (distToOther < 80) {
-                            moveVec.add(toOther.normalize().multiplyScalar(-100)); // Move away if too close
+                            moveVec.add(toOther.normalize().multiplyScalar(-100)); 
                         }
                     }
 
@@ -179,13 +181,13 @@ function animate() {
                     h.userData.arms[0].rotation.x = Math.sin(h.userData.legPhase + Math.PI) * 0.3;
                     h.userData.arms[1].rotation.x = Math.sin(h.userData.legPhase) * 0.3;
 
-                    // Rotate to face AWAY from player while fleeing
+                    // Rotate to face AWAY from player while fleeing (Much faster rotation)
                     const targetQuaternion = new THREE.Quaternion();
                     const tempLookAt = camera.position.clone(); tempLookAt.y = h.position.y;
                     h.lookAt(tempLookAt);
                     h.rotation.y += Math.PI; 
                     targetQuaternion.copy(h.quaternion);
-                    h.quaternion.slerp(targetQuaternion, delta * 3);
+                    h.quaternion.slerp(targetQuaternion, delta * 10);
                 } else {
                     // Reset animations if not fleeing
                     h.userData.legs[0].rotation.x = 0;
@@ -206,7 +208,10 @@ function animate() {
             h.position.y = -(h.userData.consumption * 160); 
             if (h.userData.consumption >= 1.0) {
                 logic.recordConsumption(h.userData.traits);
-                scene.remove(dot); scene.remove(h); logic.dots.splice(i, 1);
+                scene.remove(dot); scene.remove(h); 
+                logic.dots.splice(i, 1);
+                const hIdx = logic.humans.indexOf(h);
+                if (hIdx !== -1) logic.humans.splice(hIdx, 1);
                 
                 logic.setMovementDisabled(false);
                 logic.setGlobalMeltHuman(null);

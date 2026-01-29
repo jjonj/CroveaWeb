@@ -95,7 +95,7 @@ export function createLogic(scene, camera, glowTexture) {
             }
         }
     function createTentacleMesh() {
-        const mesh = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]), 20, 5, 8, false), new THREE.MeshBasicMaterial({ color: 0x000000, fog: false }));
+        const mesh = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]), 20, 5, 8, false), new THREE.MeshBasicMaterial({ color: 0x000000 }));
         scene.add(mesh); return { mesh, reach: 0 };
     }
     for(let i=0; i<4; i++) tentacles.push(createTentacleMesh());
