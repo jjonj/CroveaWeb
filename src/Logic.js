@@ -185,6 +185,7 @@ export function createLogic(scene, camera, glowTexture) {
     return { 
         dots, humans, tentacles, 
         get currentPhase() { return currentPhase; },
+        setPhase: (val) => { currentPhase = val; },
         get debugActive() { return debugActive; },
         setDebugActive: (val) => { debugActive = val; },
         getGlobalMeltHuman: () => globalMeltHuman,

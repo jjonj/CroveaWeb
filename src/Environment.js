@@ -47,10 +47,11 @@ export function createEnvironment(scene, camera) {
             walls.position.set(camera.position.x, 750, camera.position.z);
             walls.material.side = THREE.BackSide;
             wallGroup.add(walls);
+            wallGroup.userData.center = camera.position.clone();
         }
     }
 
-    return { setupEnvironment, defaultFog };
+    return { setupEnvironment, defaultFog, wallGroup };
 }
 
 export function createGlowTexture() {

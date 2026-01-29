@@ -9,7 +9,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-const { setupEnvironment, defaultFog } = createEnvironment(scene, camera);
+const { setupEnvironment, defaultFog, wallGroup } = createEnvironment(scene, camera);
 const glowTexture = createGlowTexture();
 const logic = createLogic(scene, camera, glowTexture);
 
@@ -25,6 +25,12 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyW') moveF = true; if (e.code === 'KeyS') moveB = true;
     if (e.code === 'KeyA') moveL = true; if (e.code === 'KeyD') moveR = true;
     if (e.code === 'KeyF') { fogEnabled = !fogEnabled; scene.fog = fogEnabled ? defaultFog : null; }
+    if (e.code === 'KeyJ') { 
+        // Skip to Phase 2 (Cave Group)
+        logic.setPhase(PHASES.CAVE_GROUP);
+        setupEnvironment(true, false);
+        logic.spawn();
+    }
     if (e.code === 'KeyH') { 
         if (logic.debugActive) {
             // Exit debug mode, return to default phase
@@ -210,13 +216,15 @@ function animate() {
                 h.position.add(moveVec.multiplyScalar(delta));
 
                 // CAVE COLLISION (Phase 2 & 3)
-                if (logic.currentPhase === PHASES.CAVE_GROUP || logic.currentPhase === PHASES.FINAL_FAMILY) {
+                if ((logic.currentPhase === PHASES.CAVE_GROUP || logic.currentPhase === PHASES.FINAL_FAMILY) && wallGroup && wallGroup.userData && wallGroup.userData.center) {
                     const caveRadius = 2500;
-                    const distFromCenter = new THREE.Vector3(h.position.x - camera.position.x, 0, h.position.z - camera.position.z);
-                    if (distFromCenter.length() > caveRadius - h.userData.radius) {
-                        distFromCenter.setLength(caveRadius - h.userData.radius);
-                        h.position.x = camera.position.x + distFromCenter.x;
-                        h.position.z = camera.position.z + distFromCenter.z;
+                    const buffer = 60;
+                    const center = wallGroup.userData.center;
+                    const distFromCenter = new THREE.Vector3(h.position.x - center.x, 0, h.position.z - center.z);
+                    if (distFromCenter.length() > caveRadius - h.userData.radius - buffer) {
+                        distFromCenter.setLength(caveRadius - h.userData.radius - buffer);
+                        h.position.x = center.x + distFromCenter.x;
+                        h.position.z = center.z + distFromCenter.z;
                         
                         // Force face player when hitting wall
                         const tempLookAt = camera.position.clone(); tempLookAt.y = h.position.y;
