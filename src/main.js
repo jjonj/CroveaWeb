@@ -197,6 +197,25 @@ function animate() {
                 }
 
                 h.position.add(moveVec.multiplyScalar(delta));
+
+                // CAVE COLLISION (Phase 2 & 3)
+                if (logic.currentPhase === PHASES.CAVE_GROUP || logic.currentPhase === PHASES.FINAL_FAMILY) {
+                    const caveRadius = 2500;
+                    const distFromCenter = new THREE.Vector3(h.position.x - camera.position.x, 0, h.position.z - camera.position.z);
+                    if (distFromCenter.length() > caveRadius - h.userData.radius) {
+                        distFromCenter.setLength(caveRadius - h.userData.radius);
+                        h.position.x = camera.position.x + distFromCenter.x;
+                        h.position.z = camera.position.z + distFromCenter.z;
+                        
+                        // Force face player when hitting wall
+                        const tempLookAt = camera.position.clone(); tempLookAt.y = h.position.y;
+                        h.lookAt(tempLookAt);
+                        
+                        // Stop animations
+                        h.userData.legs[0].rotation.x = 0; h.userData.legs[1].rotation.x = 0;
+                        h.userData.arms[0].rotation.x = 0; h.userData.arms[1].rotation.x = 0;
+                    }
+                }
             }
         }
 

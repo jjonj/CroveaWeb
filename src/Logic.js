@@ -47,11 +47,19 @@ export function createLogic(scene, camera, glowTexture) {
             const clusterCenter = camera.position.clone().add(forward.clone().multiplyScalar(clusterDist));
     
             for(let i=0; i<count; i++) {
-                // Spawn each human slightly offset from the cluster center
-                const angle = (i / count) * Math.PI * 2;
-                const radius = 50 + Math.random() * 50; // Tight cluster radius (0.5m - 1.0m)
-                const x = clusterCenter.x + Math.cos(angle) * radius;
-                const z = clusterCenter.z + Math.sin(angle) * radius;
+                let x, z;
+                if (currentPhase === PHASES.CAVE_GROUP) {
+                    // Random distribution in cave (2500 is the cave radius from Environment.js)
+                    const angle = Math.random() * Math.PI * 2;
+                    const r = Math.random() * 2000; // Keep away from the very edge (2500)
+                    x = camera.position.x + Math.cos(angle) * r;
+                    z = camera.position.z + Math.sin(angle) * r;
+                } else {
+                    const angle = (i / count) * Math.PI * 2;
+                    const radius = 50 + Math.random() * 50; 
+                    x = clusterCenter.x + Math.cos(angle) * radius;
+                    z = clusterCenter.z + Math.sin(angle) * radius;
+                }
                 
                 let traits = {};
                 // ... [traits selection logic remains same]
@@ -92,6 +100,7 @@ export function createLogic(scene, camera, glowTexture) {
                 hPrefab.group.userData.consumption = 0;
                 hPrefab.group.userData.isMelting = false;
                 hPrefab.group.userData.isEscaping = false;
+                hPrefab.group.userData.radius = 40; // Approx physical radius
             }
         }
     function createTentacleMesh() {
@@ -104,7 +113,12 @@ export function createLogic(scene, camera, glowTexture) {
         const fade = document.getElementById('screen-fade'); fade.style.opacity = '1';
         await new Promise(r => setTimeout(r, 2000));
         
-        if (currentPhase === PHASES.VOID_PAIR) currentPhase = PHASES.CAVE_GROUP;
+        if (currentPhase === PHASES.VOID_PAIR) {
+            // Start fade almost immediately in Phase 1
+            setTimeout(() => triggerPhaseTransition(setupEnv), 500);
+        } else {
+            currentPhase = PHASES.CAVE_GROUP;
+        }
         else if (currentPhase === PHASES.CAVE_GROUP) currentPhase = PHASES.FINAL_FAMILY;
         else if (currentPhase === PHASES.FINAL_FAMILY) currentPhase = PHASES.DAWN;
 
