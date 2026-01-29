@@ -25,6 +25,7 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyW') moveF = true; if (e.code === 'KeyS') moveB = true;
     if (e.code === 'KeyA') moveL = true; if (e.code === 'KeyD') moveR = true;
     if (e.code === 'KeyF') { fogEnabled = !fogEnabled; scene.fog = fogEnabled ? defaultFog : null; }
+    if (e.code === 'KeyH') { logic.spawnDebug(); }
 });
 window.addEventListener('keyup', (e) => {
     if (e.code === 'KeyW') moveF = false; if (e.code === 'KeyS') moveB = false;
@@ -54,8 +55,9 @@ function animate() {
     const gazeFill = document.getElementById('gaze-fill');
 
     let groupCenter = new THREE.Vector3();
-    if (logic.currentPhase === PHASES.VOID_PAIR && logic.humans.length > 0) {
-        logic.humans.forEach(h => groupCenter.add(h.position)); groupCenter.divideScalar(logic.humans.length);
+    if (logic.humans.length > 0) {
+        logic.humans.forEach(h => groupCenter.add(h.position)); 
+        groupCenter.divideScalar(logic.humans.length);
     }
 
     for (let i = logic.dots.length - 1; i >= 0; i--) {
@@ -96,9 +98,28 @@ function animate() {
                     }
                 } else { dot.userData.gazeTime = 0; }
             } else {
-                const fleeT = (logic.currentPhase === PHASES.VOID_PAIR) ? groupCenter : h.position;
-                const fleeD = fleeT.clone().sub(camera.position).normalize();
-                h.position.add(fleeD.multiplyScalar(100 * delta));
+                // MOVEMENT LOGIC
+                let moveVec = new THREE.Vector3();
+                
+                // Flee from player together
+                const fleeDir = groupCenter.clone().sub(camera.position).setY(0).normalize();
+                moveVec.add(fleeDir.multiplyScalar(120)); // Base flee speed
+
+                // Cohesion / Separation
+                const other = logic.humans.find(otherH => otherH !== h);
+                if (other) {
+                    const toOther = other.position.clone().sub(h.position).setY(0);
+                    const distToOther = toOther.length();
+                    const targetDist = 150; // 1.5m
+                    if (distToOther > targetDist) {
+                        moveVec.add(toOther.normalize().multiplyScalar(60)); // Move towards if too far
+                    } else if (distToOther < 80) {
+                        moveVec.add(toOther.normalize().multiplyScalar(-60)); // Move away if too close
+                    }
+                }
+
+                h.position.add(moveVec.multiplyScalar(delta));
+                
                 const flatP = camera.position.clone(); flatP.y = h.position.y; h.lookAt(flatP); h.rotation.y += Math.PI;
                 h.position.y = 0; dot.userData.gazeTime = 0;
             }

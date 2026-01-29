@@ -2,15 +2,23 @@ import * as THREE from 'three';
 
 export function createEnvironment(scene, camera) {
     scene.background = new THREE.Color(0x000000);
-    const defaultFog = new THREE.FogExp2(0x000000, 0.0035);
+    const defaultFog = new THREE.FogExp2(0x000000, 0.0015);
     scene.fog = defaultFog;
 
-    scene.add(new THREE.AmbientLight(0x444444, 0.5));
-    const sun = new THREE.DirectionalLight(0xffffff, 0.6);
-    sun.position.set(0, 1000, 0);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
+    scene.add(hemi);
+
+    const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+    sun.position.set(500, 1000, 500);
     scene.add(sun);
 
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(40000, 40000), new THREE.MeshStandardMaterial({ color: 0x8b7355, roughness: 1.0 }));
+    // Player light (Lantern effect)
+    const playerLight = new THREE.PointLight(0xffffff, 50, 2000, 1);
+    camera.add(playerLight);
+    scene.add(camera);
+
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(40000, 40000), new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.8 }));
     ground.rotation.x = -Math.PI / 2;
     scene.add(ground);
 

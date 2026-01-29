@@ -4,7 +4,14 @@ export class HumanPrefab {
     constructor(traits) {
         this.group = new THREE.Group();
         this.traits = traits;
-        const mat = new THREE.MeshStandardMaterial({ color: traits.skinColor, roughness: 0.8, transparent: true });
+        const mat = new THREE.MeshStandardMaterial({ 
+            color: traits.skinColor, 
+            roughness: 0.4, 
+            metalness: 0.1,
+            emissive: traits.skinColor,
+            emissiveIntensity: 0.05,
+            transparent: true 
+        });
         const h = traits.height || 1.0;
         const sw = traits.broadShoulders ? 1.6 : 1.0;
         
