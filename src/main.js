@@ -246,14 +246,19 @@ function animate() {
                 logic.setMovementDisabled(false);
                 logic.setGlobalMeltHuman(null);
 
-                // If it's the final family, we only consume two
-                const isFinalPhase = logic.currentPhase === PHASES.FINAL_FAMILY;
-                if (logic.dots.length === 0 || (isFinalPhase && logic.dots.length === 1)) {
-                    if (isFinalPhase && logic.dots.length === 1) {
-                        // The last one escapes
-                        logic.dots[0].userData.human.userData.isEscaping = true;
-                    } else {
-                        logic.triggerPhaseTransition(setupEnvironment);
+                // If it's Phase 1, we transition faster
+                if (logic.currentPhase === PHASES.VOID_PAIR) {
+                    setTimeout(() => logic.triggerPhaseTransition(setupEnvironment), 100);
+                } else {
+                    // If it's the final family, we only consume two
+                    const isFinalPhase = logic.currentPhase === PHASES.FINAL_FAMILY;
+                    if (logic.dots.length === 0 || (isFinalPhase && logic.dots.length === 1)) {
+                        if (isFinalPhase && logic.dots.length === 1) {
+                            // The last one escapes
+                            logic.dots[0].userData.human.userData.isEscaping = true;
+                        } else {
+                            logic.triggerPhaseTransition(setupEnvironment);
+                        }
                     }
                 }
             }
