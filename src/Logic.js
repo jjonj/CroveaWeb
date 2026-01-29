@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { HumanPrefab } from './HumanPrefab.js';
 
-export const PHASES = { VOID_PAIR: 0, CAVE_GROUP: 1, FINAL_FAMILY: 2, DAWN: 3 };
+export const PHASES = { VOID_PAIR: 0, CAVE_GROUP: 1, FINAL_FAMILY: 2, DAWN: 3, DEBUG: 4 };
 const SKINS = [0x4b3621, 0x8d5524, 0xc68642, 0xf1c27d, 0xffdbac];
 
 export function createLogic(scene, camera, glowTexture) {
@@ -9,6 +9,7 @@ export function createLogic(scene, camera, glowTexture) {
     let currentPhase = PHASES.VOID_PAIR;
     let globalMeltHuman = null;
     let movementDisabled = false;
+    let debugActive = false;
 
     // The "Result" traits that will persist
     let survivorTraits = {
@@ -135,11 +136,13 @@ export function createLogic(scene, camera, glowTexture) {
     function setGlobalMeltHuman(val) { globalMeltHuman = val; }
 
     function spawnDebug() {
+        debugActive = true;
+        currentPhase = PHASES.DEBUG;
         dots.forEach(d => scene.remove(d)); humans.forEach(h => scene.remove(h));
         dots.length = 0; humans.length = 0;
         const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).setY(0).normalize();
         
-        updateNarrative("DEBUG MODE: 10 Random Humans Generated");
+        updateNarrative("DEBUG MODE: 10 Random Humans Generated (Fleeing Disabled)");
         const clusterDist = 1000;
         const clusterCenter = camera.position.clone().add(forward.clone().multiplyScalar(clusterDist));
 
@@ -173,6 +176,8 @@ export function createLogic(scene, camera, glowTexture) {
     return { 
         dots, humans, tentacles, 
         get currentPhase() { return currentPhase; },
+        get debugActive() { return debugActive; },
+        setDebugActive: (val) => { debugActive = val; },
         getGlobalMeltHuman: () => globalMeltHuman,
         setGlobalMeltHuman,
         getMovementDisabled: () => movementDisabled,

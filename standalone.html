@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wartribes | The Inescapable Gaze</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Cinzel', serif; color: #fff; cursor: crosshair; user-select: none; }
+        canvas { display: block; }
+        #ui-overlay { position: absolute; bottom: 10%; width: 100%; text-align: center; pointer-events: none; }
+        #narrative { font-size: 1.8rem; text-shadow: 0 0 20px #f00; letter-spacing: 4px; opacity: 0.9; }
+        #gaze-container { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 200px; height: 4px; border: 1px solid rgba(255,0,0,0.3); display: none; }
+        #gaze-fill { height: 100%; background: #f00; width: 0%; box-shadow: 0 0 15px #f00; }
+        #screen-fade { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; opacity: 0; pointer-events: none; transition: opacity 2s; z-index: 100; }
+        #crosshair { position: absolute; top: 50%; left: 50%; width: 4px; height: 4px; background: rgba(255,0,0,0.5); border-radius: 50%; transform: translate(-50%, -50%); }
+        #instructions { position: absolute; top: 20px; width: 100%; text-align: center; font-size: 0.8rem; opacity: 0.4; letter-spacing: 2px; }
+    </style>
+</head>
+<body>
+    <div id="screen-fade"></div>
+    <div id="canvas-container"></div>
+    <div id="gaze-container"><div id="gaze-fill"></div></div>
+    <div id="ui-overlay"><div id="narrative">Follow the terror...</div></div>
+    <div id="crosshair"></div>
+    <div id="instructions">WASD TO MOVE | FACE THEM AT 3M TO MELT | F TO TOGGLE FOG</div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // --- POINTER LOCK CONTROLS (UMD-ish) ---
+        class PointerLockControls {
+            constructor(camera, element) {
+                this.camera = camera;
+                this.element = element || document.body;
+                this.isLocked = false;
+                this.onMouseMove = (e) => {
+                    if (!this.isLocked) return;
+                    const movementX = e.movementX || e.mozMovementX || e.webkitMovementX || 0;
+                    const movementY = e.movementY || e.mozMovementY || e.webkitMovementY || 0;
+                    const euler = new THREE.Euler(0, 0, 0, 'YXZ');
+                    euler.setFromQuaternion(this.camera.quaternion);
+                    euler.y -= movementX * 0.002;
+                    euler.x -= movementY * 0.002;
+                    euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.x));
+                    this.camera.quaternion.setFromEuler(euler);
+                };
+                this.onPointerLockChange = () => {
+                    this.isLocked = document.pointerLockElement === this.element;
+                };
+                this.lock = () => this.element.requestPointerLock();
+                document.addEventListener('mousemove', this.onMouseMove);
+                document.addEventListener('pointerlockchange', this.onPointerLockChange);
+            }
+            moveRight(distance) {
+                const vec = new THREE.Vector3();
+                vec.setFromMatrixColumn(this.camera.matrix, 0);
+                this.camera.position.addScaledVector(vec, distance);
+            }
+            moveForward(distance) {
+                const vec = new THREE.Vector3();
+                vec.setFromMatrixColumn(this.camera.matrix, 0);
+                vec.crossVectors(this.camera.up, vec);
+                this.camera.position.addScaledVector(vec, distance);
+            }
+        }
+
+        // --- ENVIRONMENT ---
+        function createEnvironment(scene, camera) {
+            const defaultFog = new THREE.FogExp2(0x000000, 0.0015);
+            scene.fog = defaultFog;
+            const ambient = new THREE.AmbientLight(0xffffff, 0.05);
+            scene.add(ambient);
+            const playerLight = new THREE.PointLight(0xffffff, 1.5, 2000, 2);
+            camera.add(playerLight);
+            scene.add(camera);
+            return { defaultFog };
+        }
+
+        function createGlowTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64; canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            grad.addColorStop(0, 'rgba(255,255,255,1)');
+            grad.addColorStop(0.2, 'rgba(255,0,0,0.8)');
+            grad.addColorStop(0.5, 'rgba(50,0,0,0.3)');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad; ctx.fillRect(0, 0, 64, 64);
+            const tex = new THREE.CanvasTexture(canvas);
+            return tex;
+        }
+
+        // --- HUMAN PREFAB ---
+        class HumanPrefab {
+            constructor(traits) {
+                this.group = new THREE.Group();
+                this.traits = traits;
+                const mat = new THREE.MeshStandardMaterial({ 
+                    color: traits.skinColor, 
+                    roughness: 0.4, 
+                    metalness: 0.1,
+                    emissive: traits.skinColor,
+                    emissiveIntensity: 0.05,
+                    transparent: true 
+                });
+                const h = traits.height || 1.0;
+                const sw = traits.broadShoulders ? 1.6 : 1.0;
+                
+                const legL = new THREE.Mesh(new THREE.CylinderGeometry(8 * h, 6 * h, 90 * h, 6), mat);
+                legL.position.set(-12, 45 * h, 0); this.group.add(legL);
+                const legR = new THREE.Mesh(new THREE.CylinderGeometry(8 * h, 6 * h, 90 * h, 6), mat);
+                legR.position.set(12, 45 * h, 0); this.group.add(legR);
+
+                const torso = new THREE.Mesh(new THREE.CylinderGeometry(25 * sw * h, 18 * h, 75 * h, 8), mat);
+                torso.position.y = 90 * h + 37.5 * h; this.group.add(torso);
+                
+                if (traits.gender === 'female') {
+                    const bGeo = new THREE.SphereGeometry(8 * h, 8, 8);
+                    const bL = new THREE.Mesh(bGeo, mat); bL.position.set(-10, 140 * h, 15);
+                    const bR = new THREE.Mesh(bGeo, mat); bR.position.set(10, 140 * h, 15);
+                    this.group.add(bL, bR);
+                }
+
+                const armL = new THREE.Mesh(new THREE.CylinderGeometry(5 * h, 4 * h, 65 * h, 6), mat);
+                armL.position.set(-22 * sw * h, 145 * h, 0); armL.rotation.z = 0.2; this.group.add(armL);
+                const armR = new THREE.Mesh(new THREE.CylinderGeometry(5 * h, 4 * h, 65 * h, 6), mat);
+                armR.position.set(22 * sw * h, 145 * h, 0); armR.rotation.z = -0.2; this.group.add(armR);
+
+                const head = new THREE.Mesh(new THREE.BoxGeometry(20 * (traits.roundFace ? 1.2 : 1.0), 24, 20), mat);
+                head.position.y = 165 * h + 12 * h; this.group.add(head);
+
+                this.heartHeight = 145 * h;
+                this.group.userData.legs = [legL, legR];
+                this.group.userData.arms = [armL, armR];
+
+                const hitSphere = new THREE.Mesh(new THREE.SphereGeometry(50, 8, 8), new THREE.MeshBasicMaterial({ visible: false }));
+                hitSphere.position.y = this.heartHeight;
+                this.group.add(hitSphere);
+                this.group.userData.hitSphere = hitSphere;
+            }
+        }
+
+        // --- LOGIC ---
+        const PHASES = { VOID_PAIR: 0, CAVE_GROUP: 1, FINAL_FAMILY: 2, DAWN: 3 };
+        const SKINS = [0x4b3621, 0x8d5524, 0xc68642, 0xf1c27d, 0xffdbac];
+
+        let currentPhase = PHASES.VOID_PAIR;
+        let dots = [], humans = [], tentacles = [];
+        let globalMeltHuman = null;
+        let movementDisabled = false;
+        let survivorTraits = { skinColor: null, height: null, hairStyle: 'long', roundFace: false, gender: 'female' };
+
+        function updateNarrative(text) {
+            const el = document.getElementById('narrative');
+            if (el) el.innerText = text;
+        }
+
+        function spawn(scene, camera, glowTexture) {
+            dots.forEach(d => scene.remove(d)); humans.forEach(h => scene.remove(h));
+            dots.length = 0; humans.length = 0;
+            const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).setY(0).normalize();
+            
+            let count = 0;
+            if (currentPhase === PHASES.VOID_PAIR) { count = 2; updateNarrative("Follow the faint red pulsing..."); }
+            else if (currentPhase === PHASES.CAVE_GROUP) { count = 5; updateNarrative("Consume the traits you wish to fade..."); }
+            else if (currentPhase === PHASES.FINAL_FAMILY) { count = 3; updateNarrative("Only one can remain..."); }
+
+            const clusterDist = (currentPhase === PHASES.VOID_PAIR) ? 1200 : 700;
+            const clusterCenter = camera.position.clone().add(forward.clone().multiplyScalar(clusterDist));
+
+            for(let i=0; i<count; i++) {
+                const angle = (i / count) * Math.PI * 2;
+                const radius = 50 + Math.random() * 50;
+                const x = clusterCenter.x + Math.cos(angle) * radius;
+                const z = clusterCenter.z + Math.sin(angle) * radius;
+                
+                let traits = { skinColor: SKINS[i % SKINS.length], gender: 'female', height: 0.9 + Math.random()*0.2 };
+                if (currentPhase === PHASES.VOID_PAIR) {
+                    traits = { skinColor: SKINS[i % SKINS.length], gender: i === 0 ? 'male' : 'female', height: i === 0 ? 1.1 : 0.9 };
+                }
+
+                const hPrefab = new HumanPrefab(traits);
+                hPrefab.group.position.set(x, 0, z); scene.add(hPrefab.group); humans.push(hPrefab.group);
+                
+                const dotMat = new THREE.SpriteMaterial({ map: glowTexture, color: 0xff0000, transparent: true, opacity: 0.5, fog: false, depthTest: false });
+                const dot = new THREE.Sprite(dotMat);
+                dot.renderOrder = 999; scene.add(dot); dots.push(dot);
+                dot.userData = { human: hPrefab.group, heartHeight: hPrefab.heartHeight, phase: Math.random() * 10, gazeTime: 0 };
+                
+                hPrefab.group.userData.traits = traits;
+                hPrefab.group.userData.consumption = 0;
+                hPrefab.group.userData.isMelting = false;
+                hPrefab.group.userData.isEscaping = false;
+            }
+        }
+
+        // --- MAIN APP ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 15000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        const { defaultFog } = createEnvironment(scene, camera);
+        const glowTexture = createGlowTexture();
+        const controls = new PointerLockControls(camera, document.body);
+        document.addEventListener('mousedown', () => { controls.lock(); });
+
+        let moveF = false, moveB = false, moveL = false, moveR = false;
+        camera.position.set(0, 175, 500);
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'KeyW') moveF = true; if (e.code === 'KeyS') moveB = true;
+            if (e.code === 'KeyA') moveL = true; if (e.code === 'KeyD') moveR = true;
+        });
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'KeyW') moveF = false; if (e.code === 'KeyS') moveB = false;
+            if (e.code === 'KeyA') moveL = false; if (e.code === 'KeyD') moveR = false;
+        });
+
+        const clock = new THREE.Clock();
+        const raycaster = new THREE.Raycaster();
+
+        for(let i=0; i<4; i++) {
+            const mesh = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]), 20, 5, 8, false), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+            tentacles.push({ mesh, reach: 0 }); scene.add(mesh);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = Math.min(clock.getDelta(), 0.1);
+            const time = performance.now() * 0.001;
+
+            if (controls.isLocked && !movementDisabled) {
+                const speed = 800 * delta;
+                if (moveF) controls.moveForward(speed);
+                if (moveB) controls.moveForward(-speed);
+                if (moveL) controls.moveRight(-speed);
+                if (moveR) controls.moveRight(speed);
+            }
+
+            let activeGazeDot = null;
+            raycaster.setFromCamera(new THREE.Vector2(0,0), camera);
+            const gazeBar = document.getElementById('gaze-container');
+            const gazeFill = document.getElementById('gaze-fill');
+
+            for (let i = dots.length - 1; i >= 0; i--) {
+                const dot = dots[i];
+                const h = dot.userData.human;
+                const dist = h.position.distanceTo(camera.position);
+                
+                // PULSE SPEED INCREASE WITH DISTANCE
+                const pulseSpeed = 2 + (dist * 0.005);
+                dot.userData.phase += delta * pulseSpeed;
+                const t = dot.userData.phase;
+                
+                // Double peak "lub-dub"
+                const p1 = Math.pow(Math.max(0, Math.sin(t)), 12); // Sharper first beat
+                const p2 = Math.pow(Math.max(0, Math.sin(t - 0.5)), 12) * 0.6; // Softer delayed beat
+                const pulseFactor = p1 + p2;
+                
+                dot.material.opacity = 0.3 + pulseFactor * 0.7;
+                dot.scale.setScalar(60 + pulseFactor * 140);
+                dot.position.copy(h.position); dot.position.y = h.position.y + (dot.userData.heartHeight * h.scale.y);
+
+                const isGazing = h.userData.hitSphere ? raycaster.intersectObject(h.userData.hitSphere).length > 0 : false;
+
+                if (!h.userData.isMelting && !movementDisabled) {
+                    const tempLookAt = camera.position.clone(); tempLookAt.y = h.position.y;
+                    h.lookAt(tempLookAt);
+                    if (dist < 300 && isGazing && (!globalMeltHuman || globalMeltHuman === h)) {
+                        activeGazeDot = dot; dot.userData.gazeTime += delta;
+                        gazeBar.style.display = 'block'; gazeFill.style.width = (dot.userData.gazeTime/3*100)+'%';
+                        if (dot.userData.gazeTime >= 3.0) {
+                            h.userData.isMelting = true; movementDisabled = true; globalMeltHuman = h;
+                            gazeBar.style.display = 'none';
+                        }
+                    } else { dot.userData.gazeTime = 0; }
+                }
+
+                if (h.userData.isMelting) {
+                    activeGazeDot = dot;
+                    h.userData.consumption = Math.min(1.0, h.userData.consumption + delta * 0.2);
+                    h.scale.y = 1.0 - (h.userData.consumption * 0.95);
+                    h.scale.x = 1.0 + (h.userData.consumption * 0.6);
+                    h.position.y = -(h.userData.consumption * 160); 
+                    if (h.userData.consumption >= 1.0) {
+                        scene.remove(dot); scene.remove(h); dots.splice(i, 1); humans.splice(humans.indexOf(h), 1);
+                        if (dots.length === 0) { 
+                            currentPhase++; 
+                            if (currentPhase < PHASES.DAWN) spawn(scene, camera, glowTexture); 
+                            else updateNarrative("The survivor stands alone.");
+                            movementDisabled = false; globalMeltHuman = null;
+                        }
+                    }
+                }
+            }
+
+            if (!activeGazeDot && !movementDisabled) gazeBar.style.display = 'none';
+
+            tentacles.forEach((t, i) => {
+                if (activeGazeDot) {
+                    t.mesh.visible = true; t.reach = THREE.MathUtils.lerp(t.reach, 1.0, delta * 1.5);
+                    const start = camera.position.clone();
+                    const side = new THREE.Vector3(i<2?-140:140, -100+(i%2)*200, -100).applyQuaternion(camera.quaternion);
+                    start.add(side);
+                    const pts = [];
+                    for(let j=0; j<=10; j++) {
+                        const l = (j/10) * t.reach;
+                        const p = new THREE.Vector3().lerpVectors(start, activeGazeDot.position, l);
+                        const w = Math.sin(time*15 + (j/10)*6 + i) * (35*t.reach) * (1-Math.pow((j/10)-0.5, 2)*4);
+                        p.x+=w; p.y+=w; pts.push(p);
+                    }
+                    t.mesh.geometry.dispose(); t.mesh.geometry = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 20, 6*t.reach, 8, false);
+                } else {
+                    t.reach = THREE.MathUtils.lerp(t.reach, 0.0, delta*4.0);
+                    if (t.reach < 0.05) t.mesh.visible = false;
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        spawn(scene, camera, glowTexture);
+        animate();
+        window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+    </script>
+</body>
+</html>

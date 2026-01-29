@@ -25,7 +25,19 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyW') moveF = true; if (e.code === 'KeyS') moveB = true;
     if (e.code === 'KeyA') moveL = true; if (e.code === 'KeyD') moveR = true;
     if (e.code === 'KeyF') { fogEnabled = !fogEnabled; scene.fog = fogEnabled ? defaultFog : null; }
-    if (e.code === 'KeyH') { logic.spawnDebug(); }
+    if (e.code === 'KeyH') { 
+        if (logic.debugActive) {
+            // Exit debug mode, return to default phase
+            logic.setDebugActive(false);
+            setupEnvironment(false); // Reset to void environment
+            logic.spawn(); // Spawn initial phase humans
+            scene.fog = defaultFog; // Re-enable fog
+        } else {
+            logic.setDebugActive(true);
+            logic.spawnDebug(); 
+            scene.fog = null; // Disable fog in debug mode
+        }
+    }
 });
 window.addEventListener('keyup', (e) => {
     if (e.code === 'KeyW') moveF = false; if (e.code === 'KeyS') moveB = false;
@@ -60,14 +72,21 @@ function animate() {
         groupCenter.divideScalar(logic.humans.length);
     }
 
-    for (let i = logic.dots.length - 1; i >= 0; i--) {
+        for (let i = logic.dots.length - 1; i >= 0; i--) {
         const dot = logic.dots[i];
         const h = dot.userData.human;
         const dist = h.position.distanceTo(camera.position);
         
-        dot.userData.phase += delta * 5;
-        const p = 0.4 + Math.sin(dot.userData.phase) * 0.4;
-        dot.material.opacity = 0.3 + p * 0.6; dot.scale.setScalar(60 + p * 100);
+        // Heartbeat pulse speed increases with distance
+        const pulseSpeed = 2 + (dist * 0.005);
+        dot.userData.phase += delta * pulseSpeed;
+        const t = dot.userData.phase;
+        // Two distinct peaks for "lub-dub"
+        const p1 = Math.pow(Math.max(0, Math.sin(t)), 12); // Sharper first beat
+        const p2 = Math.pow(Math.max(0, Math.sin(t - 0.5)), 12) * 0.6; // Softer delayed beat
+        const pulseFactor = p1 + p2;
+        dot.material.opacity = 0.3 + pulseFactor * 0.7; // Modulate opacity
+        dot.scale.setScalar(60 + pulseFactor * 140); // Modulate size
         dot.position.copy(h.position); dot.position.y = h.position.y + (dot.userData.heartHeight * h.scale.y);
 
         const isGazing = h.userData.hitSphere ? raycaster.intersectObject(h.userData.hitSphere).length > 0 : false;
@@ -75,14 +94,35 @@ function animate() {
         if (h.userData.isEscaping) {
             const runDir = h.position.clone().sub(camera.position).normalize();
             h.position.add(runDir.multiplyScalar(600 * delta));
-            const flatP = camera.position.clone(); flatP.y = h.position.y; h.lookAt(flatP); h.rotation.y += Math.PI;
+
+            // Eased rotation towards/away from player
+            const targetQuaternion = new THREE.Quaternion();
+            const tempLookAt = camera.position.clone(); tempLookAt.y = h.position.y;
+            h.lookAt(tempLookAt); // Temporarily set rotation
+            h.rotation.y += Math.PI; // Invert to look away
+            targetQuaternion.copy(h.quaternion); // Store target
+            h.quaternion.slerp(targetQuaternion, delta * 3); // Interpolate
+
+            // Leg animation
+            h.userData.legPhase = (h.userData.legPhase || 0) + delta * 20; // Animation speed
+            h.userData.legs[0].rotation.x = Math.sin(h.userData.legPhase) * 0.4; // Left leg forward
+            h.userData.legs[1].rotation.x = Math.sin(h.userData.legPhase + Math.PI) * 0.4; // Right leg backward
+            h.userData.arms[0].rotation.x = Math.sin(h.userData.legPhase + Math.PI) * 0.3; // Arms counter-swing
+            h.userData.arms[1].rotation.x = Math.sin(h.userData.legPhase) * 0.3;
+
             if (dist > 3000) { scene.remove(dot); scene.remove(h); logic.dots.splice(i, 1); if (logic.dots.length === 0) logic.triggerPhaseTransition(setupEnvironment); }
             continue;
         }
 
         if (!h.userData.isMelting && !logic.getMovementDisabled()) {
+            // Eased rotation towards player
+            const targetQuaternion = new THREE.Quaternion();
+            const tempLookAt = camera.position.clone(); tempLookAt.y = h.position.y;
+            h.lookAt(tempLookAt); // Temporarily set rotation
+            targetQuaternion.copy(h.quaternion); // Store target
+            h.quaternion.slerp(targetQuaternion, delta * 3); // Interpolate
+
             if (dist < 300) {
-                const flatP = camera.position.clone(); flatP.y = h.position.y; h.lookAt(flatP);
                 const fwd = new THREE.Vector3(0,0,1).applyQuaternion(h.quaternion);
                 const toP = camera.position.clone().sub(h.position).normalize();
                 
@@ -101,27 +141,26 @@ function animate() {
                 // MOVEMENT LOGIC
                 let moveVec = new THREE.Vector3();
                 
-                // Flee from player together
-                const fleeDir = groupCenter.clone().sub(camera.position).setY(0).normalize();
-                moveVec.add(fleeDir.multiplyScalar(120)); // Base flee speed
+                if (!logic.debugActive) {
+                    // Flee from player together
+                    const fleeDir = groupCenter.clone().sub(camera.position).setY(0).normalize();
+                    moveVec.add(fleeDir.multiplyScalar(120)); // Base flee speed
 
-                // Cohesion / Separation
-                const other = logic.humans.find(otherH => otherH !== h);
-                if (other) {
-                    const toOther = other.position.clone().sub(h.position).setY(0);
-                    const distToOther = toOther.length();
-                    const targetDist = 150; // 1.5m
-                    if (distToOther > targetDist) {
-                        moveVec.add(toOther.normalize().multiplyScalar(60)); // Move towards if too far
-                    } else if (distToOther < 80) {
-                        moveVec.add(toOther.normalize().multiplyScalar(-60)); // Move away if too close
+                    // Cohesion / Separation
+                    const other = logic.humans.find(otherH => otherH !== h);
+                    if (other) {
+                        const toOther = other.position.clone().sub(h.position).setY(0);
+                        const distToOther = toOther.length();
+                        const targetDist = 150; // 1.5m
+                        if (distToOther > targetDist) {
+                            moveVec.add(toOther.normalize().multiplyScalar(60)); // Move towards if too far
+                        } else if (distToOther < 80) {
+                            moveVec.add(toOther.normalize().multiplyScalar(-60)); // Move away if too close
+                        }
                     }
                 }
 
                 h.position.add(moveVec.multiplyScalar(delta));
-                
-                const flatP = camera.position.clone(); flatP.y = h.position.y; h.lookAt(flatP); h.rotation.y += Math.PI;
-                h.position.y = 0; dot.userData.gazeTime = 0;
             }
         }
 

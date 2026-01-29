@@ -41,6 +41,23 @@ export class HumanPrefab {
         const head = new THREE.Mesh(new THREE.BoxGeometry(20 * (traits.roundFace ? 1.2 : 1.0), 24, 20), mat);
         head.position.y = 165 * h + 12 * h; this.group.add(head);
 
+        // FACIAL FEATURES
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        const eyeGeo = new THREE.BoxGeometry(4, 4, 2);
+        const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
+        eyeL.position.set(-5, head.position.y + 4, 10);
+        const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
+        eyeR.position.set(5, head.position.y + 4, 10);
+        this.group.add(eyeL, eyeR);
+
+        const nose = new THREE.Mesh(new THREE.BoxGeometry(3, 6, 4), mat);
+        nose.position.set(0, head.position.y - 2, 11);
+        this.group.add(nose);
+
+        const mouth = new THREE.Mesh(new THREE.BoxGeometry(8, 2, 2), eyeMat);
+        mouth.position.set(0, head.position.y - 8, 10);
+        this.group.add(mouth);
+
         // HAIR (Placeholders)
         if (traits.hairStyle === 'long') {
             const hairGeo = new THREE.BoxGeometry(22, 60, 22);
@@ -57,6 +74,10 @@ export class HumanPrefab {
         }
 
         this.heartHeight = 145 * h;
+        this.group.userData.legs = [legL, legR];
+        this.group.userData.arms = [armL, armR];
+        this.group.userData.legPhase = 0;
+
         // HIT SPHERE attached to group for reliable access
         const hitSphere = new THREE.Mesh(new THREE.SphereGeometry(50, 8, 8), new THREE.MeshBasicMaterial({ visible: false }));
         hitSphere.position.y = this.heartHeight;
