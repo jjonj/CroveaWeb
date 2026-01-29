@@ -23,7 +23,7 @@
     <div id="gaze-container"><div id="gaze-fill"></div></div>
     <div id="ui-overlay"><div id="narrative">Follow the terror...</div></div>
     <div id="crosshair"></div>
-    <div id="instructions">WASD TO MOVE | FACE THEM AT 3M TO MELT | F TO TOGGLE FOG</div>
+    <div id="instructions">WASD TO MOVE | FACE THEM AT 6M TO MELT | F TO TOGGLE FOG</div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
@@ -244,10 +244,19 @@
             const gazeBar = document.getElementById('gaze-container');
             const gazeFill = document.getElementById('gaze-fill');
 
+            const distToGroup = new THREE.Vector3();
+            if (humans.length > 0) {
+                humans.forEach(h => distToGroup.add(h.position));
+                distToGroup.divideScalar(humans.length);
+            }
+            const groupDist = distToGroup.distanceTo(camera.position);
+
             for (let i = dots.length - 1; i >= 0; i--) {
                 const dot = dots[i];
                 const h = dot.userData.human;
                 const dist = h.position.distanceTo(camera.position);
+                const isPhase1 = currentPhase === PHASES.VOID_PAIR;
+                const effectiveDist = isPhase1 ? groupDist : dist;
                 
                 // PULSE SPEED INCREASES WHEN CLOSE
                 const pulseSpeed = Math.max(1.5, 8 - (dist * 0.005));
@@ -268,69 +277,37 @@
                 if (!h.userData.isMelting && !movementDisabled) {
                     const tempLookAt = camera.position.clone(); tempLookAt.y = h.position.y;
                     h.lookAt(tempLookAt);
-                    if (dist < 300 && isGazing && (!globalMeltHuman || globalMeltHuman === h)) {
-                        activeGazeDot = dot; dot.userData.gazeTime += delta;
-                        gazeBar.style.display = 'block'; gazeFill.style.width = (dot.userData.gazeTime/3*100)+'%';
-                        if (dot.userData.gazeTime >= 3.0) {
-                            h.userData.isMelting = true; movementDisabled = true; globalMeltHuman = h;
-                            gazeBar.style.display = 'none';
-                        }
+                    
+                    if (effectiveDist < 600) {
+                        // Reset animations when stopped
+                        h.userData.legs[0].rotation.x = 0;
+                        h.userData.legs[1].rotation.x = 0;
+                        h.userData.arms[0].rotation.x = 0;
+                        h.userData.arms[1].rotation.x = 0;
+
+                        if (isGazing && (!globalMeltHuman || globalMeltHuman === h)) {
+                            activeGazeDot = dot; dot.userData.gazeTime += delta;
+                            gazeBar.style.display = 'block'; gazeFill.style.width = (dot.userData.gazeTime/3*100)+'%';
+                            if (dot.userData.gazeTime >= 3.0) {
+                                h.userData.isMelting = true; movementDisabled = true; globalMeltHuman = h;
+                                gazeBar.style.display = 'none';
+                            }
+                        } else { dot.userData.gazeTime = 0; }
                     } else { 
                         dot.userData.gazeTime = 0; 
                         
                         // FLEEING LOGIC
-                        let moveVec = new THREE.Vector3();
-                        if (dist < 8000) {
-                            const groupCenter = new THREE.Vector3();
-                            humans.forEach(human => groupCenter.add(human.position));
-                            groupCenter.divideScalar(humans.length);
-
-                            const fleeDir = (currentPhase === PHASES.VOID_PAIR ? groupCenter.clone() : h.position.clone()).sub(camera.position).setY(0).normalize();
-                            moveVec.add(fleeDir.multiplyScalar(250));
-
-                            // Cohesion
-                            const other = humans.find(otherH => otherH !== h);
-                            if (other) {
-                                const toOther = other.position.clone().sub(h.position).setY(0);
-                                if (toOther.length() > 150) moveVec.add(toOther.normalize().multiplyScalar(100));
-                                else if (toOther.length() < 80) moveVec.add(toOther.normalize().multiplyScalar(-100));
-                            }
-
-                            // Animation
-                            h.userData.legPhase = (h.userData.legPhase || 0) + delta * 15;
-                            h.userData.legs[0].rotation.x = Math.sin(h.userData.legPhase) * 0.4;
-                            h.userData.legs[1].rotation.x = Math.sin(h.userData.legPhase + Math.PI) * 0.4;
-                            h.userData.arms[0].rotation.x = Math.sin(h.userData.legPhase + Math.PI) * 0.3;
-                            h.userData.arms[1].rotation.x = Math.sin(h.userData.legPhase) * 0.3;
-
-                            const tempLookAt = camera.position.clone(); tempLookAt.y = h.position.y;
-                            h.lookAt(tempLookAt); h.rotation.y += Math.PI;
-                        } else {
-                            h.userData.legs[0].rotation.x = 0;
-                            h.userData.legs[1].rotation.x = 0;
-                            h.userData.arms[0].rotation.x = 0;
-                            h.userData.arms[1].rotation.x = 0;
-                        }
-                        h.position.add(moveVec.multiplyScalar(delta));
-                    }
-                }
-
-                if (h.userData.isMelting) {
-                    activeGazeDot = dot;
-                    h.userData.consumption = Math.min(1.0, h.userData.consumption + delta * 0.2);
-                    h.scale.y = 1.0 - (h.userData.consumption * 0.95);
-                    h.scale.x = 1.0 + (h.userData.consumption * 0.6);
-                    h.position.y = -(h.userData.consumption * 160); 
+// ... later in the file ...
                     if (h.userData.consumption >= 1.0) {
                         scene.remove(dot); scene.remove(h); dots.splice(i, 1); humans.splice(humans.indexOf(h), 1);
+                        movementDisabled = false; globalMeltHuman = null;
                         if (dots.length === 0) { 
                             currentPhase++; 
                             if (currentPhase < PHASES.DAWN) spawn(scene, camera, glowTexture); 
                             else updateNarrative("The survivor stands alone.");
-                            movementDisabled = false; globalMeltHuman = null;
                         }
                     }
-                }
+
             }
 
             if (!activeGazeDot && !movementDisabled) gazeBar.style.display = 'none';

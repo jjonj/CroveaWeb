@@ -71,11 +71,14 @@ function animate() {
         logic.humans.forEach(h => groupCenter.add(h.position)); 
         groupCenter.divideScalar(logic.humans.length);
     }
+    const distToGroup = groupCenter.distanceTo(camera.position);
 
         for (let i = logic.dots.length - 1; i >= 0; i--) {
         const dot = logic.dots[i];
         const h = dot.userData.human;
         const dist = h.position.distanceTo(camera.position);
+        const isPhase1 = logic.currentPhase === PHASES.VOID_PAIR;
+        const effectiveDist = isPhase1 ? distToGroup : dist;
         
         // Heartbeat pulse speed increases as distance decreases (faster when close)
         const pulseSpeed = Math.max(1.5, 8 - (dist * 0.005));
@@ -124,7 +127,13 @@ function animate() {
             targetQuaternion.copy(h.quaternion); // Store target
             h.quaternion.slerp(targetQuaternion, delta * 3); // Interpolate
 
-            if (dist < 300) {
+            if (effectiveDist < 600) {
+                // Reset animations when stopped
+                h.userData.legs[0].rotation.x = 0;
+                h.userData.legs[1].rotation.x = 0;
+                h.userData.arms[0].rotation.x = 0;
+                h.userData.arms[1].rotation.x = 0;
+
                 const fwd = new THREE.Vector3(0,0,1).applyQuaternion(h.quaternion);
                 const toP = camera.position.clone().sub(h.position).normalize();
                 
@@ -139,14 +148,13 @@ function animate() {
                         }
                     }
                 } else { dot.userData.gazeTime = 0; }
-            } else {
-                // MOVEMENT LOGIC
-                let moveVec = new THREE.Vector3();
-                
-                if (!logic.debugActive && dist < 8000) {
-                    // Flee from player together
-                    const fleeDir = (logic.currentPhase === PHASES.VOID_PAIR ? groupCenter.clone() : h.position.clone()).sub(camera.position).setY(0).normalize();
-                    moveVec.add(fleeDir.multiplyScalar(250)); // Increased flee speed
+                            } else {
+                            // MOVEMENT LOGIC
+                            let moveVec = new THREE.Vector3();
+                            
+                            if (!logic.debugActive && effectiveDist < 12000) {
+                                // Flee from player together
+                                const fleeDir = (isPhase1 ? groupCenter.clone() : h.position.clone()).sub(camera.position).setY(0).normalize();                    moveVec.add(fleeDir.multiplyScalar(250)); // Increased flee speed
 
                     // Cohesion / Separation (Sticking together)
                     const other = logic.humans.find(otherH => otherH !== h);
@@ -197,6 +205,9 @@ function animate() {
                 logic.recordConsumption(h.userData.traits);
                 scene.remove(dot); scene.remove(h); logic.dots.splice(i, 1);
                 
+                logic.setMovementDisabled(false);
+                logic.setGlobalMeltHuman(null);
+
                 // If it's the final family, we only consume two
                 const isFinalPhase = logic.currentPhase === PHASES.FINAL_FAMILY;
                 if (logic.dots.length === 0 || (isFinalPhase && logic.dots.length === 1)) {
