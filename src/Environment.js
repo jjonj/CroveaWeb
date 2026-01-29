@@ -28,10 +28,33 @@ export function createEnvironment(scene, camera) {
     function setupEnvironment(isCave, isDawn = false) {
         stemGroup.clear(); wallGroup.clear();
         if (isDawn) {
-            scene.background = new THREE.Color(0x87ceeb);
-            scene.fog = new THREE.FogExp2(0x87ceeb, 0.0005);
-            sun.intensity = 1.2;
-            sun.color.setHex(0xffaa00);
+            scene.background = new THREE.Color(0x2a0505); // Pre-dawn deep red
+            scene.fog = new THREE.FogExp2(0x2a0505, 0.0002);
+            sun.intensity = 0.5;
+            sun.color.setHex(0xff3300);
+            sun.position.set(0, 50, -5000); // Low on horizon
+
+            // Red Sun Disk
+            const sunDisk = new THREE.Mesh(
+                new THREE.CircleGeometry(500, 32),
+                new THREE.MeshBasicMaterial({ color: 0xff0000, fog: false })
+            );
+            sunDisk.position.set(0, 500, -8000);
+            stemGroup.add(sunDisk);
+
+            // Reflective Pool
+            const poolGeo = new THREE.CircleGeometry(400, 32);
+            const poolMat = new THREE.MeshStandardMaterial({ 
+                color: 0x000000, 
+                metalness: 1.0, 
+                roughness: 0.05,
+                emissive: 0x110000 
+            });
+            const pool = new THREE.Mesh(poolGeo, poolMat);
+            pool.rotation.x = -Math.PI / 2;
+            pool.position.set(camera.position.x, 2, camera.position.z - 800);
+            stemGroup.add(pool);
+
             return;
         }
         if (!isCave) {

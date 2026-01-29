@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import { createEnvironment, createGlowTexture } from './Environment.js';
 import { createLogic, PHASES } from './Logic.js';
+import { HumanPrefab } from './HumanPrefab.js';
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 15000);
@@ -26,10 +27,7 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyA') moveL = true; if (e.code === 'KeyD') moveR = true;
     if (e.code === 'KeyF') { fogEnabled = !fogEnabled; scene.fog = fogEnabled ? defaultFog : null; }
     if (e.code === 'KeyJ') { 
-        // Skip to Phase 2 (Cave Group)
-        logic.setPhase(PHASES.CAVE_GROUP);
-        setupEnvironment(true, false);
-        logic.spawn();
+        logic.skipPhase(setupEnvironment);
     }
     if (e.code === 'KeyH') { 
         if (logic.debugActive) {
@@ -57,10 +55,29 @@ const raycaster = new THREE.Raycaster();
 const meltSound = new Audio('melteffect.wav');
 meltSound.loop = true;
 
+let localPlayerHuman = null;
+
 function animate() {
     requestAnimationFrame(animate);
     const delta = Math.min(clock.getDelta(), 0.1);
     const time = performance.now() * 0.001;
+
+    // Handle local player human for final scene reflection
+    if (logic.currentPhase === PHASES.DAWN) {
+        if (!localPlayerHuman) {
+            localPlayerHuman = new HumanPrefab({
+                skinColor: 0xffdbac,
+                gender: 'female',
+                height: 1.0,
+                hairStyle: 'long'
+            });
+            scene.add(localPlayerHuman.group);
+        }
+        localPlayerHuman.group.position.copy(camera.position);
+        localPlayerHuman.group.position.y = 0;
+        const targetRot = camera.rotation.y + Math.PI;
+        localPlayerHuman.group.rotation.y = targetRot;
+    }
 
     const playerMoving = moveF || moveB || moveL || moveR;
 
