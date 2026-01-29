@@ -106,13 +106,24 @@ function animate() {
 
         if (h.userData.isMelting) {
             activeGazeDot = dot;
-            h.userData.consumption = Math.min(1.0, h.userData.consumption + delta * 0.01); 
+            h.userData.consumption = Math.min(1.0, h.userData.consumption + delta * 0.2); // Faster consumption
             h.scale.y = 1.0 - (h.userData.consumption * 0.95);
             h.scale.x = 1.0 + (h.userData.consumption * 0.6);
             h.position.y = -(h.userData.consumption * 160); 
             if (h.userData.consumption >= 1.0) {
+                logic.recordConsumption(h.userData.traits);
                 scene.remove(dot); scene.remove(h); logic.dots.splice(i, 1);
-                if (logic.dots.length === 0) logic.triggerPhaseTransition(setupEnvironment);
+                
+                // If it's the final family, we only consume two
+                const isFinalPhase = logic.currentPhase === PHASES.FINAL_FAMILY;
+                if (logic.dots.length === 0 || (isFinalPhase && logic.dots.length === 1)) {
+                    if (isFinalPhase && logic.dots.length === 1) {
+                        // The last one escapes
+                        logic.dots[0].userData.human.userData.isEscaping = true;
+                    } else {
+                        logic.triggerPhaseTransition(setupEnvironment);
+                    }
+                }
             }
         }
     }

@@ -17,8 +17,15 @@ export function createEnvironment(scene, camera) {
     const stemGroup = new THREE.Group(); scene.add(stemGroup);
     const wallGroup = new THREE.Group(); scene.add(wallGroup);
 
-    function setupEnvironment(isCave) {
+    function setupEnvironment(isCave, isDawn = false) {
         stemGroup.clear(); wallGroup.clear();
+        if (isDawn) {
+            scene.background = new THREE.Color(0x87ceeb);
+            scene.fog = new THREE.FogExp2(0x87ceeb, 0.0005);
+            sun.intensity = 1.2;
+            sun.color.setHex(0xffaa00);
+            return;
+        }
         if (!isCave) {
             for (let i = 0; i < 60; i++) {
                 const trunk = new THREE.Mesh(new THREE.CylinderGeometry(25, 35, 2500, 8), new THREE.MeshStandardMaterial({ color: 0x2a1b0a }));

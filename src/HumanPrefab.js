@@ -31,8 +31,23 @@ export class HumanPrefab {
         const armR = new THREE.Mesh(new THREE.CylinderGeometry(5 * h, 4 * h, 65 * h, 6), mat);
         armR.position.set(22 * sw * h, 145 * h, 0); armR.rotation.z = -0.2; this.group.add(armR);
 
-        const head = new THREE.Mesh(new THREE.BoxGeometry(20, 24, 20), mat);
+        const head = new THREE.Mesh(new THREE.BoxGeometry(20 * (traits.roundFace ? 1.2 : 1.0), 24, 20), mat);
         head.position.y = 165 * h + 12 * h; this.group.add(head);
+
+        // HAIR (Placeholders)
+        if (traits.hairStyle === 'long') {
+            const hairGeo = new THREE.BoxGeometry(22, 60, 22);
+            const hairMat = new THREE.MeshStandardMaterial({ color: 0x000000 });
+            const hair = new THREE.Mesh(hairGeo, hairMat);
+            hair.position.set(0, 165 * h, -5);
+            this.group.add(hair);
+        } else if (traits.hairStyle === 'short') {
+            const hairGeo = new THREE.BoxGeometry(22, 10, 22);
+            const hairMat = new THREE.MeshStandardMaterial({ color: 0x000000 });
+            const hair = new THREE.Mesh(hairGeo, hairMat);
+            hair.position.set(0, 165 * h + 24, 0);
+            this.group.add(hair);
+        }
 
         this.heartHeight = 145 * h;
         // HIT SPHERE attached to group for reliable access
