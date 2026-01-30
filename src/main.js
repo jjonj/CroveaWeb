@@ -537,17 +537,24 @@ async function startIntro() {
         seg.style.transition = 'opacity 1.5s';
         seg.innerHTML = `${highlight("it is merely what survived...")}<br/><span class="subtitle" style="opacity:1">${highlightJP("それはただ、生き残った結果なのだ...")}</span>`;
         narrative.appendChild(seg);
-        setTimeout(() => { seg.style.opacity = '1'; }, 50);
+        setTimeout(() => { if (!introFinished) seg.style.opacity = '1'; }, 50);
         
         let elapsed = 0;
         while (elapsed < 4000 && !introFinished) {
             await new Promise(r => setTimeout(r, 100));
             elapsed += 100;
         }
-        narrative.style.opacity = '0';
-        await new Promise(r => setTimeout(r, 1500));
+        if (!introFinished) {
+            narrative.style.opacity = '0';
+            await new Promise(r => setTimeout(r, 1500));
+        }
     }
     
+    if (introFinished) {
+        narrative.style.opacity = '0';
+        narrative.innerHTML = '';
+    }
+
     introFinished = true;
     fade.style.opacity = '0';
     setupEnvironment(false); 
