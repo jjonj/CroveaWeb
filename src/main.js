@@ -232,34 +232,42 @@ function animate() {
     const distToGroup = groupCenter.distanceTo(camera.position);
 
     // Update groupCenter movement ONCE per frame
-    if (logic.currentPhase === PHASES.CAVE_GROUP && logic.humans.length > 0 && !logic.debugActive && !logic.getMovementDisabled()) {
+    if (logic.currentPhase === PHASES.CAVE_GROUP && logic.humans.length > 0 && !logic.debugActive) {
         const isAnyEscaping = logic.humans.some(h => h.userData.isEscaping);
         const distToPlayer = logic.groupCenter.distanceTo(camera.position);
         
         let moveVec = new THREE.Vector3();
+        let shouldMove = false;
+
         if (isAnyEscaping) {
-            // Escape: Move towards cave center
+            // Escape: Move towards cave center (Allowed even if movementDisabled is true)
             let caveCenter = new THREE.Vector3(0, 0, 0);
             if (wallGroup && wallGroup.userData && wallGroup.userData.center) caveCenter = wallGroup.userData.center;
             const runDir = caveCenter.clone().sub(logic.groupCenter).setY(0).normalize();
-            if (runDir.lengthSq() > 0.01) moveVec.add(runDir.multiplyScalar(350 * delta)); // Reduced from 800
-        } else if (distToPlayer < 12000) {
+            if (runDir.lengthSq() > 0.01) {
+                moveVec.add(runDir.multiplyScalar(600 * delta)); // Increased from 350
+                shouldMove = true;
+            }
+        } else if (!logic.getMovementDisabled() && distToPlayer < 12000) {
             // Standard: Flee from player
             const fleeDir = logic.groupCenter.clone().sub(camera.position).setY(0).normalize();
-            moveVec.add(fleeDir.multiplyScalar(120 * delta)); // Reduced from 250
+            moveVec.add(fleeDir.multiplyScalar(250 * delta)); // Reverted to 250
+            shouldMove = true;
         }
         
-        logic.groupCenter.add(moveVec);
+        if (shouldMove) {
+            logic.groupCenter.add(moveVec);
 
-        // Clamp groupCenter to cave walls
-        if (wallGroup && wallGroup.userData && wallGroup.userData.center) {
-            const caveCenter = wallGroup.userData.center;
-            const caveRadius = 5000;
-            const formationRadius = 400; // Buffer for the x x y y layout
-            const toCenter = logic.groupCenter.clone().sub(caveCenter).setY(0);
-            if (toCenter.length() > caveRadius - formationRadius - 100) {
-                toCenter.setLength(caveRadius - formationRadius - 100);
-                logic.groupCenter.copy(caveCenter).add(toCenter);
+            // Clamp groupCenter to cave walls
+            if (wallGroup && wallGroup.userData && wallGroup.userData.center) {
+                const caveCenter = wallGroup.userData.center;
+                const caveRadius = 5000;
+                const formationRadius = 400; 
+                const toCenter = logic.groupCenter.clone().sub(caveCenter).setY(0);
+                if (toCenter.length() > caveRadius - formationRadius - 100) {
+                    toCenter.setLength(caveRadius - formationRadius - 100);
+                    logic.groupCenter.copy(caveCenter).add(toCenter);
+                }
             }
         }
     }
