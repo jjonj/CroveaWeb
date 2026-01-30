@@ -32,6 +32,8 @@ window.addEventListener('keydown', (e) => {
         if (!introFinished) {
             introFinished = true;
         } else {
+            if (localPlayerHuman) { scene.remove(localPlayerHuman.group); localPlayerHuman = null; }
+            if (reflectionHuman) { scene.remove(reflectionHuman.group); reflectionHuman = null; }
             logic.skipPhase(setupEnvironment);
         }
     }
@@ -47,6 +49,13 @@ window.addEventListener('keydown', (e) => {
             logic.spawnDebug(); 
             scene.fog = null; // Disable fog in debug mode
         }
+    }
+});
+
+// Manual Orbit Angle Control via Mouse
+window.addEventListener('mousemove', (e) => {
+    if (controls.isLocked && logic.currentPhase === PHASES.FOREST_SURVIVOR) {
+        forestOrbitAngle -= e.movementX * 0.005;
     }
 });
 window.addEventListener('keyup', (e) => {
@@ -77,6 +86,8 @@ let localPlayerHuman = null;
 let reflectionHuman = null;
 let sunriseProgress = 0;
 let soundStarted = false;
+let forestOrbitAngle = 0;
+let forestOrbitPitch = 0.3; // Default pitch
 
 function animate() {
     requestAnimationFrame(animate);
@@ -170,7 +181,7 @@ function animate() {
     // Audio transitions
     if (logic.currentPhase === PHASES.FOREST_SURVIVOR) {
         if (bgMusic.volume > 0) bgMusic.volume = Math.max(0, bgMusic.volume - delta * 0.2);
-        if (forestAmbient.volume < 0.6) forestAmbient.volume = Math.min(0.6, forestAmbient.volume + delta * 0.2);
+        if (forestAmbient.volume < 0.42) forestAmbient.volume = Math.min(0.42, forestAmbient.volume + delta * 0.2);
     } else if (logic.currentPhase === PHASES.DAWN) {
         if (bgMusic.volume > 0) bgMusic.volume = Math.max(0, bgMusic.volume - delta * 0.1);
         if (forestAmbient.volume > 0) forestAmbient.volume = Math.max(0, forestAmbient.volume - delta * 0.1);
@@ -178,13 +189,25 @@ function animate() {
 
     const playerMoving = moveF || moveB || moveL || moveR;
 
-    if (controls.isLocked && !logic.getMovementDisabled()) {
+    if (controls.isLocked && !logic.getMovementDisabled() && logic.currentPhase !== PHASES.FOREST_SURVIVOR) {
         velocity.x -= velocity.x * 10 * delta; velocity.z -= velocity.z * 10 * delta;
         direction.z = Number(moveF) - Number(moveB); direction.x = Number(moveR) - Number(moveL); direction.normalize();
         const speed = 1040; // 800 * 1.3
         if (moveF || moveB) velocity.z -= direction.z * speed * 10 * delta;
         if (moveL || moveR) velocity.x -= direction.x * speed * 10 * delta;
         controls.moveRight(-velocity.x * delta); controls.moveForward(-velocity.z * delta);
+    }
+
+    // Orbital camera for forest phase
+    if (logic.currentPhase === PHASES.FOREST_SURVIVOR && localPlayerHuman) {
+        const orbitRadius = 400;
+        const targetPos = localPlayerHuman.group.position;
+        camera.position.set(
+            targetPos.x + Math.cos(forestOrbitAngle) * orbitRadius,
+            targetPos.y + 120,
+            targetPos.z + Math.sin(forestOrbitAngle) * orbitRadius
+        );
+        camera.lookAt(targetPos.x, targetPos.y + 20, targetPos.z);
     }
 
     let activeGazeDot = null;
@@ -452,7 +475,11 @@ function animate() {
             h.scale.x = 1.0 + (h.userData.consumption * 0.6);
             h.position.y = -(h.userData.consumption * 160); 
             if (h.userData.consumption >= 1.0) {
-                logic.recordConsumption(h.userData.traits);
+                if (!h.userData.consumptionRecorded) {
+                    logic.recordConsumption(h.userData);
+                    h.userData.consumptionRecorded = true;
+                    if (h.userData.partner) h.userData.partner.userData.consumptionRecorded = true;
+                }
                 scene.remove(dot); scene.remove(h); 
                 logic.dots.splice(i, 1);
                 const hIdx = logic.humans.indexOf(h);

@@ -71,38 +71,36 @@ export function createLogic(scene, camera, glowTexture) {
 
         if (currentPhase === PHASES.FOREST_SURVIVOR) {
             const survivor = new HumanPrefab(survivorTraits);
-            survivor.group.position.set(0, 5, 0); // Laying on ground (adjusted by HumanPrefab structure likely)
-            survivor.group.rotation.x = Math.PI / 2; // Laying down
+            survivor.group.position.set(0, 5, 0); 
+            survivor.group.rotation.x = Math.PI / 2; 
             scene.add(survivor.group);
             humans.push(survivor.group);
-            // No gaze dot for survivor phase
             return;
         }
 
         const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).setY(0).normalize();
         
+        const unlocked = Object.keys(traitPool).filter(k => traitPool[k].length > 1);
+        
         let count = 0;
         if (currentPhase === PHASES.VOID_PAIR) {
             count = 2;
         } else if (currentPhase === PHASES.CAVE_GROUP) {
-            const unlockedTraits = Object.keys(traitPool).filter(k => traitPool[k].length > 1);
-            count = (unlockedTraits.length === 0 || (unlockedTraits.length === 1 && traitPool[unlockedTraits[0]].length === 2)) ? 2 : 4;
+            // Ensure final round is a 1v1
+            count = (unlocked.length === 1) ? 2 : 4;
         }
 
         let clusterDist = (currentPhase === PHASES.VOID_PAIR) ? 1200 : 2500;
         let clusterCenter = camera.position.clone().add(forward.clone().multiplyScalar(clusterDist));
         
-        // Ensure clusterCenter is within cave walls if in CAVE_GROUP
         if (currentPhase === PHASES.CAVE_GROUP) {
-            // Find the cave center (stored in wallGroup.userData.center)
             let caveCenter = new THREE.Vector3(0, 0, 0);
             scene.traverse(obj => {
                 if (obj.userData && obj.userData.center) caveCenter = obj.userData.center;
             });
-
             const toCluster = clusterCenter.clone().sub(caveCenter).setY(0);
             const caveRadius = 5000;
-            const spawnBuffer = 500; // Keep 500 units away from walls
+            const spawnBuffer = 500;
             if (toCluster.length() > caveRadius - spawnBuffer) {
                 toCluster.setLength(caveRadius - spawnBuffer);
                 clusterCenter.copy(caveCenter).add(toCluster);
@@ -111,12 +109,13 @@ export function createLogic(scene, camera, glowTexture) {
 
         groupCenter.copy(clusterCenter).setY(0);
 
-        // Prepare traits for the round if in CAVE_GROUP
         let roundTraitValues = { left: {}, right: {} };
         if (currentPhase === PHASES.CAVE_GROUP) {
-            const unlocked = Object.keys(traitPool).filter(k => traitPool[k].length > 1);
-            // Pick up to 3 traits to vary
-            activeSelectionTraits = unlocked.sort(() => Math.random() - 0.5).slice(0, 3);
+            // Pick traits to vary
+            let maxToVary = (count === 4) ? Math.min(unlocked.length - 1, 3) : 1;
+            if (maxToVary < 1) maxToVary = 1;
+
+            activeSelectionTraits = unlocked.sort(() => Math.random() - 0.5).slice(0, maxToVary);
             
             console.log("%c--- NEW SELECTION ROUND ---", "color: #00ff00; font-weight: bold;");
             console.log("Active Selection Traits:", activeSelectionTraits);
@@ -136,11 +135,8 @@ export function createLogic(scene, camera, glowTexture) {
             let formationOffset = new THREE.Vector3();
 
             if (currentPhase === PHASES.CAVE_GROUP) {
-                // Fixed formation: x x   y y
-                // Indices: 0 1   2 3
                 const spacing = 100;
                 const pairGap = 250;
-                
                 let localX = 0;
                 if (count === 4) {
                     if (i === 0) localX = -pairGap/2 - spacing;
@@ -148,12 +144,10 @@ export function createLogic(scene, camera, glowTexture) {
                     if (i === 2) localX = pairGap/2;
                     if (i === 3) localX = pairGap/2 + spacing;
                 } else {
-                    // Final choice (count 2)
                     localX = (i === 0) ? -pairGap/2 : pairGap/2;
                 }
 
                 formationOffset.set(localX, 0, 0);
-                // Rotate offset to match camera's forward direction
                 const formationQuat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(1,0,0), forward.clone().applyAxisAngle(new THREE.Vector3(0,1,0), Math.PI/2));
                 formationOffset.applyQuaternion(formationQuat);
 
@@ -174,22 +168,18 @@ export function createLogic(scene, camera, glowTexture) {
                     height: i === 0 ? 1.1 : 0.9,
                     broadShoulders: i === 0,
                     hairStyle: i === 0 ? 'short' : 'long',
-                    roundFace: i === 1
+                    roundFace: i === 1,
+                    hairColor: 0x000000
                 };
             } else if (currentPhase === PHASES.CAVE_GROUP) {
-                const isRightPair = i >= (count / 2);
-                const side = isRightPair ? 'right' : 'left';
+                const isRightSide = i >= (count / 2);
+                const side = isRightSide ? 'right' : 'left';
                 
-                traits = {
-                    gender: survivorTraits.gender,
-                };
-
-                // Apply selected traits
+                traits = { gender: survivorTraits.gender };
                 activeSelectionTraits.forEach(t => {
                     traits[t] = roundTraitValues[side][t];
                 });
 
-                // Fill other traits from pool (randomly to keep them unique/ambiguous)
                 Object.keys(traitPool).forEach(t => {
                     if (traits[t] === undefined) {
                         const possible = traitPool[t];
@@ -197,7 +187,6 @@ export function createLogic(scene, camera, glowTexture) {
                     }
                 });
 
-                // "Unique body types" - add some jitter to height if not a selected trait
                 if (!activeSelectionTraits.includes('height')) {
                     traits.height += (Math.random() - 0.5) * 0.1;
                 }
@@ -217,7 +206,6 @@ export function createLogic(scene, camera, glowTexture) {
             hPrefab.group.userData.formationOffset = formationOffset;
         }
 
-        // Link pairs
         if (currentPhase === PHASES.CAVE_GROUP && count === 4) {
             humans[0].userData.partner = humans[1];
             humans[1].userData.partner = humans[0];
@@ -226,59 +214,23 @@ export function createLogic(scene, camera, glowTexture) {
         }
     }
 
-    function createTentacleMesh() {
-        const mesh = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]), 20, 5, 8, false), new THREE.MeshBasicMaterial({ color: 0x000000 }));
-        scene.add(mesh); return { mesh, reach: 0 };
-    }
-    for(let i=0; i<8; i++) tentacles.push(createTentacleMesh());
-
-    async function triggerPhaseTransition(setupEnv) {
-        const fade = document.getElementById('screen-fade'); fade.style.opacity = '1';
-        await new Promise(r => setTimeout(r, 1000));
-        
-        if (currentPhase === PHASES.VOID_PAIR) currentPhase = PHASES.CAVE_GROUP;
-        else if (currentPhase === PHASES.CAVE_GROUP) currentPhase = PHASES.FOREST_SURVIVOR;
-
-        if (currentPhase === PHASES.FOREST_SURVIVOR || currentPhase === PHASES.DAWN) {
-            dots.forEach(d => scene.remove(d)); 
-            humans.forEach(h => scene.remove(h));
-            dots.length = 0; humans.length = 0;
-
-            const isDawn = currentPhase === PHASES.DAWN;
-            const isForest = currentPhase === PHASES.FOREST_SURVIVOR;
-            
-            setupEnv(false, isDawn, isForest); 
-            spawn();
-            console.log("FINAL SURVIVOR TRAITS:", survivorTraits);
-        } else {
-            setupEnv(currentPhase !== PHASES.VOID_PAIR, false); spawn();
-        }
-
-        fade.style.opacity = '0'; 
-        setMovementDisabled(false);
-        setGlobalMeltHuman(null);
-    }
-
-    function recordConsumption(traits) {
+    function recordConsumption(userData) {
+        const traits = userData.traits;
         if (currentPhase === PHASES.VOID_PAIR) {
             const survivor = humans.find(h => h.userData.traits !== traits);
             if (survivor) {
                 survivorTraits.gender = survivor.userData.traits.gender;
-                // Lock gender in pool
                 traitPool.gender = [survivorTraits.gender];
             }
         } else if (currentPhase === PHASES.CAVE_GROUP) {
-            console.log(`%cELIMINATING PAIR (${traits.side})`, "color: #ff4444; font-weight: bold;");
-            // Remove the traits of the melted human from the pool
+            console.log(`%cELIMINATING PAIR (${userData.side})`, "color: #ff4444; font-weight: bold;");
             activeSelectionTraits.forEach(t => {
                 const valToRemove = traits[t];
                 console.log(`Eliminating ${t}: ${formatTraitValue(t, valToRemove)}`);
                 traitPool[t] = traitPool[t].filter(v => v !== valToRemove);
             });
 
-            // Check if we are done with Phase 1
             const unlocked = Object.keys(traitPool).filter(k => traitPool[k].length > 1);
-            
             const formattedPool = {};
             for (let k in traitPool) {
                 formattedPool[k] = traitPool[k].map(v => formatTraitValue(k, v));
@@ -286,7 +238,6 @@ export function createLogic(scene, camera, glowTexture) {
             console.log("Remaining Trait Pool:", formattedPool);
 
             if (unlocked.length === 0) {
-                // Finalize survivor traits from whatever is left in the pool
                 Object.keys(traitPool).forEach(t => {
                     survivorTraits[t] = traitPool[t][0];
                 });
@@ -337,6 +288,38 @@ export function createLogic(scene, camera, glowTexture) {
             hPrefab.group.userData.isMelting = false;
             hPrefab.group.userData.isEscaping = false;
         }
+    }
+
+    function createTentacleMesh() {
+        const mesh = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]), 20, 5, 8, false), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+        scene.add(mesh); return { mesh, reach: 0 };
+    }
+    for(let i=0; i<8; i++) tentacles.push(createTentacleMesh());
+
+    async function triggerPhaseTransition(setupEnv) {
+        const fade = document.getElementById('screen-fade'); fade.style.opacity = '1';
+        await new Promise(r => setTimeout(r, 1000));
+        
+        if (currentPhase === PHASES.VOID_PAIR) currentPhase = PHASES.CAVE_GROUP;
+        else if (currentPhase === PHASES.CAVE_GROUP) currentPhase = PHASES.DAWN; 
+
+        if (currentPhase === PHASES.DAWN) {
+            dots.forEach(d => scene.remove(d)); 
+            humans.forEach(h => scene.remove(h));
+            dots.length = 0; humans.length = 0;
+
+            // Clear potential global references in main.js if they existed
+            // (Handled by checking their existence in animate loop)
+
+            setupEnv(false, true); 
+            console.log("FINAL SURVIVOR TRAITS:", survivorTraits);
+        } else {
+            setupEnv(currentPhase !== PHASES.VOID_PAIR, false); spawn();
+        }
+
+        fade.style.opacity = '0'; 
+        setMovementDisabled(false);
+        setGlobalMeltHuman(null);
     }
 
     return { 
