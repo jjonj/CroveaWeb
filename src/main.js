@@ -322,7 +322,7 @@ function animate() {
                         const targetPos = logic.groupCenter.clone().add(h.userData.formationOffset);
                         h.position.lerp(targetPos, delta * 5.0);
                     } else {
-                        // VOID_PAIR (Scene 1): Individual flocking/separation
+                        // VOID_PAIR (Scene 1): Individual flocking/separation + Cohesion
                         const fleeDir = h.position.clone().sub(camera.position).setY(0).normalize();
                         moveVec.add(fleeDir.multiplyScalar(250)); 
 
@@ -331,9 +331,14 @@ function animate() {
                             const toOther = other.position.clone().sub(h.position).setY(0);
                             const distToOther = toOther.length();
                             
-                            // Separation: Avoid overlapping
-                            if (distToOther < 200) {
-                                moveVec.add(toOther.normalize().multiplyScalar(-450));
+                            // Cohesion: Pull towards each other if drifting apart
+                            if (distToOther > 120) {
+                                moveVec.add(toOther.normalize().multiplyScalar(400));
+                            }
+
+                            // Separation: Avoid overlapping (Tightened)
+                            if (distToOther < 80) {
+                                moveVec.add(toOther.normalize().multiplyScalar(-600));
                             }
                         });
 
@@ -538,51 +543,7 @@ async function startIntro() {
     
     
     
-                    const blocks = segments.map(s => {
-    
-    
-    
-                        const block = document.createElement('div');
-    
-    
-    
-                        block.className = 'segment-block';
-    
-    
-    
-                        block.style.opacity = '0';
-    
-    
-    
-                        block.style.transition = 'opacity 1.5s';
-    
-    
-    
-                        block.innerHTML = `
-    
-    
-    
-                            <div class="en">${highlight(s.en)}</div>
-    
-    
-    
-                            <div class="jp">${highlightJP(s.jp)}</div>
-    
-    
-    
-                        `;
-    
-    
-    
-                        container.appendChild(block);
-    
-    
-    
-                        return block;
-    
-    
-    
-                    });
+                            const blocks = segments.map(s => {
     
     
     
@@ -590,47 +551,207 @@ async function startIntro() {
     
     
     
-                    for (let i = 0; i < segments.length; i++) {
+                                const block = document.createElement('div');
     
     
     
-                        if (introFinished) break;
+            
     
     
     
-                        blocks[i].style.opacity = '1';
+                                block.className = 'segment-block';
     
     
     
-                        
+            
     
     
     
-                        let elapsed = 0;
+                                block.style.opacity = '0';
     
     
     
-                        while (elapsed < segments[i].d && !introFinished) {
+            
     
     
     
-                            await new Promise(r => setTimeout(r, 100));
+                                block.style.transition = 'opacity 3.0s'; // Slower fade
     
     
     
-                            elapsed += 100;
+            
+    
+    
+    
+                                block.innerHTML = `
+    
+    
+    
+            
+    
+    
+    
+                                    <div class="en">${highlight(s.en)}</div>
+    
+    
+    
+            
+    
+    
+    
+                                    <div class="jp">${highlightJP(s.jp)}</div>
+    
+    
+    
+            
+    
+    
+    
+                                `;
+    
+    
+    
+            
+    
+    
+    
+                                container.appendChild(block);
+    
+    
+    
+            
+    
+    
+    
+                                return block;
+    
+    
+    
+            
+    
+    
+    
+                            });
+    
+    
+    
+            
+    
+    
+    
+                    
+    
+    
+    
+            
+    
+    
+    
+                            // Small delay to ensure browser registers opacity: 0 before we set it to 1
+    
+    
+    
+            
+    
+    
+    
+                            await new Promise(r => setTimeout(r, 50));
+    
+    
+    
+            
+    
+    
+    
+                    
+    
+    
+    
+            
+    
+    
+    
+                            for (let i = 0; i < segments.length; i++) {
+    
+    
+    
+            
+    
+    
+    
+                                if (introFinished) break;
+    
+    
+    
+            
+    
+    
+    
+                                blocks[i].style.opacity = '1';
+    
+    
+    
+            
+    
+    
+    
+                                
+    
+    
+    
+            
+    
+    
+    
+                                let elapsed = 0;
+    
+    
+    
+            
+    
+    
+    
+                                while (elapsed < segments[i].d && !introFinished) {
+    
+    
+    
+            
+    
+    
+    
+                                    await new Promise(r => setTimeout(r, 100));
+    
+    
+    
+            
+    
+    
+    
+                                    elapsed += 100;
+    
+    
+    
+            
+    
+    
+    
+                                }
+    
+    
+    
+            
+    
+    
+    
+                            }
+    
+    
+    
+            
     
     
     
                         }
-    
-    
-    
-                    }
-    
-    
-    
-                }
     
     
     
