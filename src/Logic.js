@@ -58,11 +58,17 @@ export function createLogic(scene, camera, glowTexture) {
             // Pick up to 3 traits to vary
             activeSelectionTraits = unlocked.sort(() => Math.random() - 0.5).slice(0, 3);
             
+            console.log("%c--- NEW SELECTION ROUND ---", "color: #00ff00; font-weight: bold;");
+            console.log("Active Selection Traits:", activeSelectionTraits);
+
             activeSelectionTraits.forEach(trait => {
                 const values = [...traitPool[trait]].sort(() => Math.random() - 0.5);
                 roundTraitValues.left[trait] = values[0];
                 roundTraitValues.right[trait] = values[1] || values[0];
             });
+
+            console.log("Left Pair Values:", roundTraitValues.left);
+            console.log("Right Pair Values:", roundTraitValues.right);
         }
 
         for(let i=0; i<count; i++) {
@@ -182,19 +188,23 @@ export function createLogic(scene, camera, glowTexture) {
                 traitPool.gender = [survivorTraits.gender];
             }
         } else if (currentPhase === PHASES.CAVE_GROUP) {
+            console.log(`%cELIMINATING PAIR (${traits.side})`, "color: #ff4444; font-weight: bold;");
             // Remove the traits of the melted human from the pool
             activeSelectionTraits.forEach(t => {
                 const valToRemove = traits[t];
+                console.log(`Eliminating ${t}: ${valToRemove}`);
                 traitPool[t] = traitPool[t].filter(v => v !== valToRemove);
             });
 
             // Check if we are done with Phase 1
             const unlocked = Object.keys(traitPool).filter(k => traitPool[k].length > 1);
+            console.log("Remaining Trait Pool:", traitPool);
             if (unlocked.length === 0) {
                 // Finalize survivor traits from whatever is left in the pool
                 Object.keys(traitPool).forEach(t => {
                     survivorTraits[t] = traitPool[t][0];
                 });
+                console.log("%cALL TRAITS LOCKED", "color: #00ffff; font-weight: bold;");
             }
         }
     }
