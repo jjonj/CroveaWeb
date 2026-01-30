@@ -452,38 +452,76 @@ async function startIntro() {
     const overlay = document.getElementById('ui-overlay');
     
     overlay.style.opacity = '1';
-    narrative.style.opacity = '0';
+    narrative.style.opacity = '1'; // Keep container visible
+    narrative.innerHTML = '';
     await new Promise(r => setTimeout(r, 1000));
     
-    const showLine = async (en, jp, duration = 4000) => {
+    const highlight = (text) => text.replace(/\bYou\b/g, '<span class="highlight">You</span>').replace(/\byour\b/g, '<span class="highlight">your</span>').replace(/\bYour\b/g, '<span class="highlight">Your</span>');
+    const highlightJP = (text) => text.replace(/あなた/g, '<span class="highlight">あなた</span>');
+
+    const addSegment = async (en, jp, duration = 2000) => {
         if (introFinished) return;
-        narrative.style.opacity = '0';
-        await new Promise(r => setTimeout(r, 500));
-        if (introFinished) return;
+        const segment = document.createElement('span');
+        segment.style.opacity = '0';
+        segment.style.transition = 'opacity 1.5s';
+        segment.innerHTML = highlight(en);
         
-        // Highlight "You" and "あなた"
-        const enFinal = en.replace(/\bYou\b/g, '<span class="highlight">You</span>').replace(/\byour\b/g, '<span class="highlight">your</span>').replace(/\bYour\b/g, '<span class="highlight">Your</span>');
-        const jpFinal = jp.replace(/あなた/g, '<span class="highlight">あなた</span>');
+        // Add space if not first
+        if (narrative.querySelector('.en-line') && narrative.querySelector('.en-line').innerHTML !== '') {
+            // narrative.querySelector('.en-line').innerHTML += ' ';
+        }
+
+        if (!narrative.querySelector('.en-line')) {
+            narrative.innerHTML = '<div class="en-line"></div><div class="subtitle"></div>';
+        }
+
+        narrative.querySelector('.en-line').appendChild(segment);
         
-        narrative.innerHTML = `${enFinal}<br/><span class="subtitle">${jpFinal}</span>`;
-        narrative.style.opacity = '1';
+        // Handle JP build up
+        const jpLine = narrative.querySelector('.subtitle');
+        jpLine.innerHTML = highlightJP(jp);
+        jpLine.style.opacity = '1';
+
+        // Trigger fade in
+        setTimeout(() => { segment.style.opacity = '1'; }, 50);
         
         let elapsed = 0;
         while (elapsed < duration && !introFinished) {
             await new Promise(r => setTimeout(r, 100));
             elapsed += 100;
         }
-        narrative.style.opacity = '0';
-        if (!introFinished) await new Promise(r => setTimeout(r, 1000));
     };
 
-    // First sentence in 3 steps
-    if (!introFinished) await showLine("Your body..", "あなたの体...", 1500);
-    if (!introFinished) await showLine("Your body.. your face..", "あなたの体、そして顔は...", 1500);
-    if (!introFinished) await showLine("Your body.. your face.. is not by design", "あなたの体、そして顔は、意図して作られたものではない。", 4000);
+    // First sentence in 3 cumulative steps
+    if (!introFinished) await addSegment("Your body.. ", "あなたの体...", 1500);
+    if (!introFinished) await addSegment("your face.. ", "あなたの体、そして顔は...", 1500);
+    if (!introFinished) await addSegment("is not by design", "あなたの体、そして顔は、意図して作られたものではない。", 3000);
     
+    // Fade out first sentence
+    if (!introFinished) {
+        narrative.style.opacity = '0';
+        await new Promise(r => setTimeout(r, 1500));
+        narrative.innerHTML = '';
+        narrative.style.opacity = '1';
+    }
+
     // Second sentence
-    if (!introFinished) await showLine("it is merely what survived...", "それはただ、生き残った結果なのだ...", 4000);
+    if (!introFinished) {
+        const seg = document.createElement('div');
+        seg.style.opacity = '0';
+        seg.style.transition = 'opacity 1.5s';
+        seg.innerHTML = `${highlight("it is merely what survived...")}<br/><span class="subtitle" style="opacity:1">${highlightJP("それはただ、生き残った結果なのだ...")}</span>`;
+        narrative.appendChild(seg);
+        setTimeout(() => { seg.style.opacity = '1'; }, 50);
+        
+        let elapsed = 0;
+        while (elapsed < 4000 && !introFinished) {
+            await new Promise(r => setTimeout(r, 100));
+            elapsed += 100;
+        }
+        narrative.style.opacity = '0';
+        await new Promise(r => setTimeout(r, 1500));
+    }
     
     introFinished = true;
     fade.style.opacity = '0';
