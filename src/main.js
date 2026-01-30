@@ -231,10 +231,43 @@ function animate() {
     }
     const distToGroup = groupCenter.distanceTo(camera.position);
 
-        for (let i = logic.dots.length - 1; i >= 0; i--) {
+    // Update groupCenter movement ONCE per frame
+    if (logic.currentPhase === PHASES.CAVE_GROUP && logic.humans.length > 0 && !logic.debugActive && !logic.getMovementDisabled()) {
+        const isAnyEscaping = logic.humans.some(h => h.userData.isEscaping);
+        const distToPlayer = logic.groupCenter.distanceTo(camera.position);
+        
+        let moveVec = new THREE.Vector3();
+        if (isAnyEscaping) {
+            // Escape: Move towards cave center
+            let caveCenter = new THREE.Vector3(0, 0, 0);
+            if (wallGroup && wallGroup.userData && wallGroup.userData.center) caveCenter = wallGroup.userData.center;
+            const runDir = caveCenter.clone().sub(logic.groupCenter).setY(0).normalize();
+            if (runDir.lengthSq() > 0.01) moveVec.add(runDir.multiplyScalar(800 * delta));
+        } else if (distToPlayer < 12000) {
+            // Standard: Flee from player
+            const fleeDir = logic.groupCenter.clone().sub(camera.position).setY(0).normalize();
+            moveVec.add(fleeDir.multiplyScalar(250 * delta));
+        }
+        
+        logic.groupCenter.add(moveVec);
+
+        // Clamp groupCenter to cave walls
+        if (wallGroup && wallGroup.userData && wallGroup.userData.center) {
+            const caveCenter = wallGroup.userData.center;
+            const caveRadius = 5000;
+            const formationRadius = 400; // Buffer for the x x y y layout
+            const toCenter = logic.groupCenter.clone().sub(caveCenter).setY(0);
+            if (toCenter.length() > caveRadius - formationRadius - 100) {
+                toCenter.setLength(caveRadius - formationRadius - 100);
+                logic.groupCenter.copy(caveCenter).add(toCenter);
+            }
+        }
+    }
+
+    for (let i = logic.dots.length - 1; i >= 0; i--) {
         const dot = logic.dots[i];
         const h = dot.userData.human;
-        const dist = h.position.distanceTo(camera.position);
+        let dist = h.position.distanceTo(camera.position);
         const isPhase1 = logic.currentPhase === PHASES.VOID_PAIR;
         const isDawn = logic.currentPhase === PHASES.DAWN;
         const effectiveDist = isPhase1 ? distToGroup : dist;
@@ -269,46 +302,30 @@ function animate() {
         const isGazing = (h.userData.hitSphere && !isDawn) ? raycaster.intersectObject(h.userData.hitSphere).length > 0 : false;
 
         if (h.userData.isEscaping) {
-            const isPhase1 = logic.currentPhase === PHASES.CAVE_GROUP;
+            const isPhase1_bool = logic.currentPhase === PHASES.CAVE_GROUP;
             
-            // ESCAPE DIRECTION
-            let runDir;
-            if (isPhase1) {
-                // In Phase 1, the whole group center runs towards the center of the map
-                let caveCenter = new THREE.Vector3(0, 0, 0);
-                if (wallGroup && wallGroup.userData && wallGroup.userData.center) {
-                    caveCenter = wallGroup.userData.center;
-                }
-                
-                runDir = caveCenter.clone().sub(logic.groupCenter).setY(0).normalize();
-                if (runDir.lengthSq() < 0.01) runDir.set(0,0,1); // Fallback
-                
-                // Move the GROUP center
-                const runSpeed = 800;
-                logic.groupCenter.add(runDir.clone().multiplyScalar(runSpeed * delta));
-            } else {
-                runDir = h.position.clone().sub(camera.position).setY(0).normalize();
-                const runSpeed = 780;
-                h.position.add(runDir.multiplyScalar(runSpeed * delta));
-                
-                // Max flee distance for Phase 0
-                if (!isPhase1 && dist > 1500) {
-                    h.userData.isEscaping = false;
-                }
-            }
-
-            // Move individual human towards their formation spot
-            if (isPhase1) {
+            if (isPhase1_bool) {
+                // Move individual human towards their formation spot relative to the (clamped) groupCenter
                 const targetPos = logic.groupCenter.clone().add(h.userData.formationOffset);
                 h.position.lerp(targetPos, delta * 5.0);
+                
+                // Rotation matches the group's run direction (calculated earlier)
+                let caveCenter = new THREE.Vector3(0, 0, 0);
+                if (wallGroup && wallGroup.userData && wallGroup.userData.center) caveCenter = wallGroup.userData.center;
+                const lookDir = caveCenter.clone().sub(h.position).setY(0).normalize();
+                if (lookDir.lengthSq() > 0.01) {
+                    const lookPos = h.position.clone().add(lookDir);
+                    h.lookAt(lookPos);
+                }
+            } else {
+                // VOID_PAIR escape logic
+                const runDir = h.position.clone().sub(camera.position).setY(0).normalize();
+                h.position.add(runDir.multiplyScalar(780 * delta));
+                if (dist > 1500) h.userData.isEscaping = false;
+                
+                const lookPos = h.position.clone().add(runDir);
+                h.lookAt(lookPos);
             }
-
-            // Eased rotation towards run direction
-            const targetQuaternion = new THREE.Quaternion();
-            const lookPos = h.position.clone().add(runDir);
-            h.lookAt(lookPos);
-            targetQuaternion.copy(h.quaternion);
-            h.quaternion.slerp(targetQuaternion, delta * 3.0);
 
             // Leg animation
             h.userData.legPhase = (h.userData.legPhase || 0) + delta * 20;
@@ -320,42 +337,34 @@ function animate() {
             h.userData.arms[1].shoulder.rotation.x = Math.sin(h.userData.legPhase) * 0.6;
             h.userData.arms[0].elbow.rotation.x = -0.5;
             h.userData.arms[1].elbow.rotation.x = -0.5;
-            h.userData.arms[0].shoulder.rotation.y = 0;
-            h.userData.arms[1].shoulder.rotation.y = 0;
-            h.userData.arms[0].shoulder.rotation.z = 0.2;
-            h.userData.arms[1].shoulder.rotation.z = -0.2;
 
             // Stop condition for Phase 1
-            if (isPhase1) {
+            if (isPhase1_bool) {
                 h.userData.escapeTimer = (h.userData.escapeTimer || 0) + delta;
             }
 
             // Despawn logic for Phase 1 (CAVE_GROUP)
-            if (isPhase1 && h.userData.isEscaping && h.userData.escapeTimer > 2.0) {
+            if (isPhase1_bool && h.userData.isEscaping && h.userData.escapeTimer > 2.0) {
                 scene.remove(dot); scene.remove(h); 
                 logic.dots.splice(i, 1);
                 const hIdx = logic.humans.indexOf(h);
                 if (hIdx !== -1) logic.humans.splice(hIdx, 1);
 
                 if (logic.dots.length === 0) {
-                    if (logic.isPhaseComplete) {
-                        logic.triggerPhaseTransition(setupEnvironment);
-                    }
-                    else {
-                        logic.spawn();
-                    }
+                    if (logic.isPhaseComplete) logic.triggerPhaseTransition(setupEnvironment);
+                    else logic.spawn();
                 }
             }
             continue;
         }
 
         if (!h.userData.isMelting && !logic.getMovementDisabled()) {
-            // Eased rotation towards player (Increased speed for snappier feel)
+            // Eased rotation towards player
             const targetQuaternion = new THREE.Quaternion();
             const tempLookAt = camera.position.clone(); tempLookAt.y = h.position.y;
-            h.lookAt(tempLookAt); // Temporarily set rotation
-            targetQuaternion.copy(h.quaternion); // Store target
-            h.quaternion.slerp(targetQuaternion, delta * 10); // Faster interpolation (was 3)
+            h.lookAt(tempLookAt);
+            targetQuaternion.copy(h.quaternion);
+            h.quaternion.slerp(targetQuaternion, delta * 10);
 
             if (effectiveDist < 600) {
                 // Shake in fear
@@ -363,26 +372,12 @@ function animate() {
                 h.position.x += (Math.random() - 0.5) * shakeAmount;
                 h.position.z += (Math.random() - 0.5) * shakeAmount;
 
-                // Move hands towards chin
-                const armL = h.userData.arms[0];
-                const armR = h.userData.arms[1];
-                
-                // Shoulder rotations to bring arms in
-                armL.shoulder.rotation.x = -0.8;
-                armL.shoulder.rotation.y = 0.5;
-                armL.shoulder.rotation.z = 0.4;
-                
-                armR.shoulder.rotation.x = -0.8;
-                armR.shoulder.rotation.y = -0.5;
-                armR.shoulder.rotation.z = -0.4;
-                
-                // Elbow rotations to fold arms up to chin
-                armL.elbow.rotation.x = -2.0;
-                armR.elbow.rotation.x = -2.0;
-
-                // Reset legs when stopped
-                h.userData.legs[0].rotation.x = 0;
-                h.userData.legs[1].rotation.x = 0;
+                // Arm fold animation
+                const armL = h.userData.arms[0], armR = h.userData.arms[1];
+                armL.shoulder.rotation.set(-0.8, 0.5, 0.4);
+                armR.shoulder.rotation.set(-0.8, -0.5, -0.4);
+                armL.elbow.rotation.x = -2.0; armR.elbow.rotation.x = -2.0;
+                h.userData.legs[0].rotation.x = 0; h.userData.legs[1].rotation.x = 0;
 
                 if (isGazing && (!logic.getGlobalMeltHuman() || logic.getGlobalMeltHuman() === h)) {
                     activeGazeDot = dot; dot.userData.gazeTime += delta;
@@ -390,122 +385,60 @@ function animate() {
                     if (dot.userData.gazeTime >= 3.0) {
                         h.userData.isMelting = true; logic.setMovementDisabled(true); logic.setGlobalMeltHuman(h);
                         gazeBar.style.display = 'none';
-                        
-                        // Phase 0: The other human escapes
                         if (logic.currentPhase === PHASES.VOID_PAIR) {
                             logic.dots.forEach(d => { if(d !== dot) d.userData.human.userData.isEscaping = true; });
-                        }
-                        // Phase 1: Partner melts too, others escape
-                        else if (logic.currentPhase === PHASES.CAVE_GROUP) {
+                        } else if (logic.currentPhase === PHASES.CAVE_GROUP) {
                             if (h.userData.partner) {
                                 h.userData.partner.userData.isMelting = true;
-                                // Find partner's dot to hide it
                                 const partnerDot = logic.dots.find(d => d.userData.human === h.userData.partner);
                                 if (partnerDot) partnerDot.userData.gazeTime = 3.0;
                             }
                             logic.dots.forEach(d => { 
                                 const otherH = d.userData.human;
-                                if(otherH !== h && otherH !== h.userData.partner) {
-                                    otherH.userData.isEscaping = true; 
-                                }
+                                if(otherH !== h && otherH !== h.userData.partner) otherH.userData.isEscaping = true; 
                             });
                         }
                     }
                 } else { dot.userData.gazeTime = 0; }
             } else {
                 // MOVEMENT LOGIC
-                let moveVec = new THREE.Vector3();
-                
                 if (!logic.debugActive && effectiveDist < 12000) {
                     if (logic.currentPhase === PHASES.CAVE_GROUP) {
-                        // CAVE_GROUP: Fixed formation relative to groupCenter
-                        const fleeDir = logic.groupCenter.clone().sub(camera.position).setY(0).normalize();
-                        moveVec.add(fleeDir.multiplyScalar(250)); 
-                        
-                        logic.groupCenter.add(moveVec.clone().multiplyScalar(delta));
-
+                        // Move individual human towards formation spot (relative to clamped groupCenter)
                         const targetPos = logic.groupCenter.clone().add(h.userData.formationOffset);
                         h.position.lerp(targetPos, delta * 5.0);
                     } else {
-                        // VOID_PAIR (Scene 1): Individual flocking/separation + Cohesion
+                        // VOID_PAIR logic
+                        let moveVec = new THREE.Vector3();
                         const fleeDir = h.position.clone().sub(camera.position).setY(0).normalize();
                         moveVec.add(fleeDir.multiplyScalar(250)); 
-
                         logic.humans.forEach(other => {
                             if (other === h) return;
                             const toOther = other.position.clone().sub(h.position).setY(0);
-                            const distToOther = toOther.length();
-                            
-                            // Cohesion: Pull towards each other if drifting apart
-                            if (distToOther > 120) {
-                                moveVec.add(toOther.normalize().multiplyScalar(400));
-                            }
-
-                            // Separation: Avoid overlapping (Tightened)
-                            if (distToOther < 80) {
-                                moveVec.add(toOther.normalize().multiplyScalar(-600));
-                            }
+                            if (toOther.length() > 120) moveVec.add(toOther.normalize().multiplyScalar(400));
+                            if (toOther.length() < 80) moveVec.add(toOther.normalize().multiplyScalar(-600));
                         });
-
                         h.position.add(moveVec.multiplyScalar(delta));
                     }
                     
-                    // Leg animation while fleeing
+                    // Fleeing animations
                     h.userData.legPhase = (h.userData.legPhase || 0) + delta * 15;
                     h.userData.legs[0].rotation.x = Math.sin(h.userData.legPhase) * 0.4;
                     h.userData.legs[1].rotation.x = Math.sin(h.userData.legPhase + Math.PI) * 0.4;
-                    
-                    // Fleeing arms swing (two-part)
                     h.userData.arms[0].shoulder.rotation.x = Math.sin(h.userData.legPhase + Math.PI) * 0.6;
                     h.userData.arms[1].shoulder.rotation.x = Math.sin(h.userData.legPhase) * 0.6;
-                    h.userData.arms[0].elbow.rotation.x = -0.5;
-                    h.userData.arms[1].elbow.rotation.x = -0.5;
-                    h.userData.arms[0].shoulder.rotation.y = 0;
-                    h.userData.arms[1].shoulder.rotation.y = 0;
-                    h.userData.arms[0].shoulder.rotation.z = 0.2;
-                    h.userData.arms[1].shoulder.rotation.z = -0.2;
+                    h.userData.arms[0].elbow.rotation.x = -0.5; h.userData.arms[1].elbow.rotation.x = -0.5;
 
-                    // Rotate to face AWAY from player while fleeing
                     const targetQuaternion = new THREE.Quaternion();
                     const tempLookAt = camera.position.clone(); tempLookAt.y = h.position.y;
-                    h.lookAt(tempLookAt);
-                    h.rotation.y += Math.PI; 
-                    targetQuaternion.copy(h.quaternion);
-                    h.quaternion.slerp(targetQuaternion, delta * 3.0);
+                    h.lookAt(tempLookAt); h.rotation.y += Math.PI; 
+                    targetQuaternion.copy(h.quaternion); h.quaternion.slerp(targetQuaternion, delta * 3.0);
                 } else {
-                    // Reset animations if not fleeing
-                    h.userData.legs[0].rotation.x = 0;
-                    h.userData.legs[1].rotation.x = 0;
+                    h.userData.legs[0].rotation.x = 0; h.userData.legs[1].rotation.x = 0;
                     h.userData.arms.forEach((arm, idx) => {
                         arm.shoulder.rotation.set(0, 0, idx === 0 ? 0.2 : -0.2);
                         arm.elbow.rotation.set(0, 0, 0);
                     });
-                }
-
-                h.position.add(moveVec.multiplyScalar(delta));
-
-                // CAVE COLLISION (Phase 2 & 3)
-                if ((logic.currentPhase === PHASES.CAVE_GROUP || logic.currentPhase === PHASES.FINAL_FAMILY) && wallGroup && wallGroup.userData && wallGroup.userData.center) {
-                    const caveRadius = 5000;
-                    const buffer = 60;
-                    const center = wallGroup.userData.center;
-                    const distFromCenter = new THREE.Vector3(h.position.x - center.x, 0, h.position.z - center.z);
-                    if (distFromCenter.length() > caveRadius - h.userData.radius - buffer) {
-                        distFromCenter.setLength(caveRadius - h.userData.radius - buffer);
-                        h.position.x = center.x + distFromCenter.x;
-                        h.position.z = center.z + distFromCenter.z;
-                        
-                        // Force face player when hitting wall
-                        const tempLookAt = camera.position.clone(); tempLookAt.y = h.position.y;
-                        h.lookAt(tempLookAt);
-                        
-                        // Stop animations
-                        h.userData.legs[0].rotation.x = 0; h.userData.legs[1].rotation.x = 0;
-                        h.userData.arms.forEach((arm, idx) => {
-                            arm.shoulder.rotation.set(0, 0, idx === 0 ? 0.2 : -0.2);
-                            arm.elbow.rotation.set(0, 0, 0);
-                        });
-                    }
                 }
             }
         }
