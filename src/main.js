@@ -578,11 +578,15 @@ function animate() {
         const t = Math.max(0, Math.min(1, (nearestDist - 400) / (1200 - 400)));
         const x = (1 - t) * 10 - 5; // Maps 0-1 to 5 to -5 range for sigmoid
         const hFactor = 1 / (1 + Math.exp(-x));
-        camera.position.y = lowY + (highY - lowY) * hFactor;
+        const targetY = lowY + (highY - lowY) * hFactor;
+        
+        // Rise faster than we fall
+        const lerpSpeed = (targetY > camera.position.y) ? 4.0 : 1.5;
+        camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetY, delta * lerpSpeed);
     } else if (logic.currentPhase !== PHASES.DAWN && logic.currentPhase !== PHASES.FOREST_SURVIVOR) {
         heartbeatSound.volume = 0;
-        // Default ground height
-        camera.position.y = 40;
+        // Gradually return to ground level
+        camera.position.y = THREE.MathUtils.lerp(camera.position.y, 40, delta * 1.5);
     } else {
         heartbeatSound.volume = 0;
     }
