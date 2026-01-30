@@ -274,8 +274,13 @@ function animate() {
             // ESCAPE DIRECTION
             let runDir;
             if (isPhase1) {
-                // In Phase 1, the whole group center flees away from the player
-                runDir = logic.groupCenter.clone().sub(camera.position).setY(0).normalize();
+                // In Phase 1, the whole group center runs towards the center of the map
+                let caveCenter = new THREE.Vector3(0, 0, 0);
+                if (wallGroup && wallGroup.userData && wallGroup.userData.center) {
+                    caveCenter = wallGroup.userData.center;
+                }
+                
+                runDir = caveCenter.clone().sub(logic.groupCenter).setY(0).normalize();
                 if (runDir.lengthSq() < 0.01) runDir.set(0,0,1); // Fallback
                 
                 // Move the GROUP center
