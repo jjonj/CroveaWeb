@@ -60,15 +60,25 @@ const raycaster = new THREE.Raycaster();
 // Audio Setup
 const meltSound = new Audio('melteffect.wav');
 meltSound.loop = true;
+const heartbeatSound = new Audio('heartbeat.mp3');
+heartbeatSound.loop = true;
+heartbeatSound.volume = 0;
 
 let localPlayerHuman = null;
 let reflectionHuman = null;
 let sunriseProgress = 0;
+let soundStarted = false;
 
 function animate() {
     requestAnimationFrame(animate);
     const delta = Math.min(clock.getDelta(), 0.1);
     const time = performance.now() * 0.001;
+
+    // Start heartbeat on first interaction
+    if (controls.isLocked && !soundStarted) {
+        heartbeatSound.play().catch(() => {});
+        soundStarted = true;
+    }
 
     // Handle local player human for final scene reflection
     if (logic.currentPhase === PHASES.DAWN) {
@@ -145,6 +155,10 @@ function animate() {
     }
 
     let activeGazeDot = null;
+    let nearestDist = Infinity;
+    let nearestPulseFactor = 0;
+    let nearestPulseSpeed = 0;
+
     raycaster.setFromCamera(new THREE.Vector2(0,0), camera);
     const gazeBar = document.getElementById('gaze-container');
     const gazeFill = document.getElementById('gaze-fill');
@@ -174,6 +188,12 @@ function animate() {
         const p2 = Math.pow(Math.max(0, Math.sin(t - 0.7)), 20) * 0.5; // Distinct second beat
         const pulseFactor = p1 + p2;
         
+        if (dist < nearestDist) {
+            nearestDist = dist;
+            nearestPulseFactor = pulseFactor;
+            nearestPulseSpeed = pulseSpeed;
+        }
+
         // Disable pulse and gaze in Dawn phase
         if (isDawn) {
             dot.material.opacity = 0;
@@ -441,6 +461,20 @@ function animate() {
                 }
             }
         }
+    }
+
+    // Update heartbeat audio based on nearest human
+    if (logic.currentPhase !== PHASES.DAWN && nearestDist < 2500 && soundStarted) {
+        // Volume scales with proximity and pulses with the visual rhythm
+        const distFactor = Math.max(0, 1 - (nearestDist / 2500));
+        // Modulate volume by pulseFactor to create "thump-thump" effect
+        heartbeatSound.volume = distFactor * (0.1 + nearestPulseFactor * 0.9) * 0.6;
+        
+        // Sync playback rate to pulse speed
+        // Baseline pulseSpeed is 1.5 (slow) up to 8.0 (fast)
+        heartbeatSound.playbackRate = 0.7 + (nearestPulseSpeed - 1.5) * (0.8 / 6.5);
+    } else {
+        heartbeatSound.volume = 0;
     }
 
     if (activeGazeDot && !playerMoving && logic.currentPhase !== PHASES.DAWN) {
