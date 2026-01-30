@@ -22,12 +22,18 @@ let fogEnabled = true;
 const velocity = new THREE.Vector3(), direction = new THREE.Vector3();
 camera.position.set(0, 175, 500);
 
+let introFinished = false;
+
 window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyW') moveF = true; if (e.code === 'KeyS') moveB = true;
     if (e.code === 'KeyA') moveL = true; if (e.code === 'KeyD') moveR = true;
     if (e.code === 'KeyF') { fogEnabled = !fogEnabled; scene.fog = fogEnabled ? defaultFog : null; }
     if (e.code === 'KeyJ') { 
-        logic.skipPhase(setupEnvironment);
+        if (!introFinished) {
+            introFinished = true;
+        } else {
+            logic.skipPhase(setupEnvironment);
+        }
     }
     if (e.code === 'KeyH') { 
         if (logic.debugActive) {
@@ -232,6 +238,11 @@ function animate() {
 
             // Despawn logic for Phase 1 (CAVE_GROUP)
             if (logic.currentPhase === PHASES.CAVE_GROUP && h.userData.isEscaping && dist > 3000) {
+                // Already handled in the removal loop at the bottom? 
+                // No, let's keep it consistent.
+            }
+            continue;
+        }
 
         if (!h.userData.isMelting && !logic.getMovementDisabled()) {
             // Eased rotation towards player (Increased speed for snappier feel)
@@ -444,21 +455,37 @@ async function startIntro() {
     narrative.style.opacity = '0';
     await new Promise(r => setTimeout(r, 1000));
     
-    // Line 1
-    narrative.innerText = "Your body.. your face.. is not by design";
-    narrative.style.opacity = '1';
-    await new Promise(r => setTimeout(r, 4000));
-    narrative.style.opacity = '0';
-    await new Promise(r => setTimeout(r, 2000));
+    const showLine = async (en, jp, duration = 4000) => {
+        if (introFinished) return;
+        narrative.style.opacity = '0';
+        await new Promise(r => setTimeout(r, 500));
+        if (introFinished) return;
+        
+        // Highlight "You" and "あなた"
+        const enFinal = en.replace(/\bYou\b/g, '<span class="highlight">You</span>').replace(/\byour\b/g, '<span class="highlight">your</span>').replace(/\bYour\b/g, '<span class="highlight">Your</span>');
+        const jpFinal = jp.replace(/あなた/g, '<span class="highlight">あなた</span>');
+        
+        narrative.innerHTML = `${enFinal}<br/><span class="subtitle">${jpFinal}</span>`;
+        narrative.style.opacity = '1';
+        
+        let elapsed = 0;
+        while (elapsed < duration && !introFinished) {
+            await new Promise(r => setTimeout(r, 100));
+            elapsed += 100;
+        }
+        narrative.style.opacity = '0';
+        if (!introFinished) await new Promise(r => setTimeout(r, 1000));
+    };
+
+    // First sentence in 3 steps
+    if (!introFinished) await showLine("Your body..", "あなたの体...", 1500);
+    if (!introFinished) await showLine("Your body.. your face..", "あなたの体、そして顔は...", 1500);
+    if (!introFinished) await showLine("Your body.. your face.. is not by design", "あなたの体、そして顔は、意図して作られたものではない。", 4000);
     
-    // Line 2
-    narrative.innerText = "it is merely what survived...";
-    narrative.style.opacity = '1';
-    await new Promise(r => setTimeout(r, 4000));
-    narrative.style.opacity = '0';
-    await new Promise(r => setTimeout(r, 2000));
+    // Second sentence
+    if (!introFinished) await showLine("it is merely what survived...", "それはただ、生き残った結果なのだ...", 4000);
     
-    // Fade into game
+    introFinished = true;
     fade.style.opacity = '0';
     setupEnvironment(false); 
     logic.spawn(); 
