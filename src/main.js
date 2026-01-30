@@ -178,8 +178,8 @@ function animate() {
         const isDawn = logic.currentPhase === PHASES.DAWN;
         const effectiveDist = isPhase1 ? distToGroup : dist;
         
-        // Heartbeat pulse speed increases as distance decreases (faster when close)
-        const pulseSpeed = Math.max(1.5, 8 - (dist * 0.005));
+        // Heartbeat pulse speed increases as distance decreases (drastically faster when close)
+        const pulseSpeed = Math.max(1.5, 20 - (dist * 0.012)); // Increased from 8
         dot.userData.phase += delta * pulseSpeed;
         const t = dot.userData.phase;
         
@@ -471,8 +471,8 @@ function animate() {
         heartbeatSound.volume = distFactor * (0.1 + nearestPulseFactor * 0.9) * 0.6;
         
         // Sync playback rate to pulse speed
-        // Baseline pulseSpeed is 1.5 (slow) up to 8.0 (fast)
-        heartbeatSound.playbackRate = 0.7 + (nearestPulseSpeed - 1.5) * (0.8 / 6.5);
+        // Baseline pulseSpeed is 1.5 (slow) up to 20.0 (fast)
+        heartbeatSound.playbackRate = 0.7 + (nearestPulseSpeed - 1.5) * (1.8 / 18.5);
     } else {
         heartbeatSound.volume = 0;
     }
