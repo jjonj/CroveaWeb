@@ -204,6 +204,11 @@ function animate() {
                 runDir = h.position.clone().sub(camera.position).setY(0).normalize();
                 const runSpeed = 780;
                 h.position.add(runDir.multiplyScalar(runSpeed * delta));
+                
+                // Max flee distance for Phase 0
+                if (!isPhase1 && dist > 1500) {
+                    h.userData.isEscaping = false;
+                }
             }
 
             // Move individual human towards their formation spot
@@ -483,72 +488,293 @@ async function startIntro() {
     narrative.innerHTML = '';
     await new Promise(r => setTimeout(r, 1000));
     
-    const highlight = (text) => text.replace(/\bYou\b/g, '<span class="highlight">You</span>').replace(/\byour\b/g, '<span class="highlight">your</span>').replace(/\bYour\b/g, '<span class="highlight">Your</span>');
-    const highlightJP = (text) => text.replace(/あなた/g, '<span class="highlight">あなた</span>');
-
-    const addSegment = async (en, jp, duration = 2000) => {
-        if (introFinished) return;
-        
-        if (!narrative.querySelector('.en-line')) {
-            narrative.innerHTML = '<div class="en-line"></div><div class="subtitle" style="opacity:0; transition: opacity 1.5s;"></div>';
-        }
-
-        const segment = document.createElement('span');
-        segment.style.opacity = '0';
-        segment.style.transition = 'opacity 1.5s';
-        segment.innerHTML = highlight(en);
-        
-        narrative.querySelector('.en-line').appendChild(segment);
-        
-        // Handle JP build up with fade
-        const jpLine = narrative.querySelector('.subtitle');
-        jpLine.innerHTML = highlightJP(jp);
-        
-        // Trigger fade in for both
-        setTimeout(() => { 
-            segment.style.opacity = '1'; 
-            jpLine.style.opacity = '1';
-        }, 50);
-        
-        let elapsed = 0;
-        while (elapsed < duration && !introFinished) {
-            await new Promise(r => setTimeout(r, 100));
-            elapsed += 100;
-        }
-    };
-
-    // First sentence in 3 cumulative steps
-    if (!introFinished) await addSegment("Your body.. ", "あなたの体...", 1500);
-    if (!introFinished) await addSegment("your face.. ", "あなたの体、そして顔は...", 1500);
-    if (!introFinished) await addSegment("is not by design", "あなたの体、そして顔は、意図して作られたものではない。", 3000);
+            const highlight = (text) => text.replace(/\bYou\b/g, '<span class="highlight">You</span>').replace(/\byour\b/g, '<span class="highlight">your</span>').replace(/\bYour\b/g, '<span class="highlight">Your</span>');
     
-    // Fade out first sentence
-    if (!introFinished) {
-        narrative.style.opacity = '0';
-        await new Promise(r => setTimeout(r, 1500));
-        narrative.innerHTML = '';
-        narrative.style.opacity = '1';
-    }
-
-    // Second sentence
-    if (!introFinished) {
-        const seg = document.createElement('div');
-        seg.style.opacity = '0';
-        seg.style.transition = 'opacity 1.5s';
-        seg.innerHTML = `${highlight("it is merely what survived...")}<br/><span class="subtitle" style="opacity:1">${highlightJP("それはただ、生き残った結果なのだ...")}</span>`;
-        narrative.appendChild(seg);
-        setTimeout(() => { if (!introFinished) seg.style.opacity = '1'; }, 50);
+            const highlightJP = (text) => text.replace(/あなた/g, '<span class="highlight">あなた</span>');
+    
         
-        let elapsed = 0;
-        while (elapsed < 4000 && !introFinished) {
-            await new Promise(r => setTimeout(r, 100));
-            elapsed += 100;
-        }
-        if (!introFinished) {
-            narrative.style.opacity = '0';
-            await new Promise(r => setTimeout(r, 1500));
-        }
-    }
+    
+            // First sentence in 3 cumulative steps - Pre-allocated to prevent snapping
+    
+    
+    
+                if (!introFinished) {
+    
+    
+    
+                    narrative.innerHTML = '<div class="narrative-container"></div>';
+    
+    
+    
+                    const container = narrative.querySelector('.narrative-container');
+    
+    
+    
+                    
+    
+    
+    
+                    const segments = [
+    
+    
+    
+                        { en: "Your body.. ", jp: "あなたの体.. ", d: 1500 },
+    
+    
+    
+                        { en: "your face.. ", jp: "そして顔は.. ", d: 1500 },
+    
+    
+    
+                        { en: "is not by design", jp: "意図して作られたものではない。", d: 3000 }
+    
+    
+    
+                    ];
+    
+    
+    
+            
+    
+    
+    
+                    const blocks = segments.map(s => {
+    
+    
+    
+                        const block = document.createElement('div');
+    
+    
+    
+                        block.className = 'segment-block';
+    
+    
+    
+                        block.style.opacity = '0';
+    
+    
+    
+                        block.style.transition = 'opacity 1.5s';
+    
+    
+    
+                        block.innerHTML = `
+    
+    
+    
+                            <div class="en">${highlight(s.en)}</div>
+    
+    
+    
+                            <div class="jp">${highlightJP(s.jp)}</div>
+    
+    
+    
+                        `;
+    
+    
+    
+                        container.appendChild(block);
+    
+    
+    
+                        return block;
+    
+    
+    
+                    });
+    
+    
+    
+            
+    
+    
+    
+                    for (let i = 0; i < segments.length; i++) {
+    
+    
+    
+                        if (introFinished) break;
+    
+    
+    
+                        blocks[i].style.opacity = '1';
+    
+    
+    
+                        
+    
+    
+    
+                        let elapsed = 0;
+    
+    
+    
+                        while (elapsed < segments[i].d && !introFinished) {
+    
+    
+    
+                            await new Promise(r => setTimeout(r, 100));
+    
+    
+    
+                            elapsed += 100;
+    
+    
+    
+                        }
+    
+    
+    
+                    }
+    
+    
+    
+                }
+    
+    
+    
+                
+    
+    
+    
+                // Fade out first sentence
+    
+    
+    
+                if (!introFinished) {
+    
+    
+    
+                    narrative.style.opacity = '0';
+    
+    
+    
+                    await new Promise(r => setTimeout(r, 1500));
+    
+    
+    
+                    narrative.innerHTML = '';
+    
+    
+    
+                    narrative.style.opacity = '1';
+    
+    
+    
+                }
+    
+    
+    
+            
+    
+    
+    
+                // Second sentence
+    
+    
+    
+                if (!introFinished) {
+    
+    
+    
+                    narrative.innerHTML = '<div class="narrative-container"></div>';
+    
+    
+    
+                    const container = narrative.querySelector('.narrative-container');
+    
+    
+    
+                    
+    
+    
+    
+                    const seg = document.createElement('div');
+    
+    
+    
+                    seg.className = 'segment-block';
+    
+    
+    
+                    seg.style.opacity = '0';
+    
+    
+    
+                    seg.style.transition = 'opacity 1.5s';
+    
+    
+    
+                    seg.innerHTML = `
+    
+    
+    
+                        <div class="en">${highlight("it is merely what survived...")}</div>
+    
+    
+    
+                        <div class="jp">${highlightJP("それはただ、生き残った結果なのだ...")}</div>
+    
+    
+    
+                    `;
+    
+    
+    
+                    container.appendChild(seg);
+    
+    
+    
+                    
+    
+    
+    
+                    setTimeout(() => { if (!introFinished) seg.style.opacity = '1'; }, 50);
+    
+    
+    
+                    
+    
+    
+    
+                    let elapsed = 0;
+    
+    
+    
+                    while (elapsed < 4000 && !introFinished) {
+    
+    
+    
+                        await new Promise(r => setTimeout(r, 100));
+    
+    
+    
+                        elapsed += 100;
+    
+    
+    
+                    }
+    
+    
+    
+                    if (!introFinished) {
+    
+    
+    
+                        narrative.style.opacity = '0';
+    
+    
+    
+                        await new Promise(r => setTimeout(r, 1500));
+    
+    
+    
+                    }
+    
+    
+    
+                }
     
     if (introFinished) {
         narrative.style.opacity = '0';

@@ -70,6 +70,14 @@ export function createLogic(scene, camera, glowTexture) {
         dots.length = 0; humans.length = 0;
         const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).setY(0).normalize();
         
+        let count = 0;
+        if (currentPhase === PHASES.VOID_PAIR) {
+            count = 2;
+        } else if (currentPhase === PHASES.CAVE_GROUP) {
+            const unlockedTraits = Object.keys(traitPool).filter(k => traitPool[k].length > 1);
+            count = (unlockedTraits.length === 0 || (unlockedTraits.length === 1 && traitPool[unlockedTraits[0]].length === 2)) ? 2 : 4;
+        }
+
         let clusterDist = (currentPhase === PHASES.VOID_PAIR) ? 1200 : 2500;
         let clusterCenter = camera.position.clone().add(forward.clone().multiplyScalar(clusterDist));
         
