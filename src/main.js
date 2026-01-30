@@ -60,7 +60,9 @@ const raycaster = new THREE.Raycaster();
 // Audio Setup
 const meltSound = new Audio('melteffect.wav');
 meltSound.loop = true;
-meltSound.volume = 0.4;
+meltSound.volume = 0.2; // Halved from 0.4
+let lastMeltTime = 0;
+
 const heartbeatSound = new Audio('heartbeat.mp3');
 heartbeatSound.loop = true;
 heartbeatSound.volume = 0;
@@ -77,6 +79,7 @@ function animate() {
     requestAnimationFrame(animate);
     const delta = Math.min(clock.getDelta(), 0.1);
     const time = performance.now() * 0.001;
+    const now = performance.now();
 
     // Start audio on first interaction
     if (controls.isLocked && !soundStarted) {
@@ -488,7 +491,10 @@ function animate() {
     }
 
     if (activeGazeDot && !playerMoving && logic.currentPhase !== PHASES.DAWN) {
-        if (meltSound.paused) meltSound.play();
+        if (meltSound.paused && (now - lastMeltTime > 5000)) {
+            meltSound.play();
+            lastMeltTime = now;
+        }
     } else {
         if (!meltSound.paused) {
             meltSound.pause();
