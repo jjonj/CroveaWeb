@@ -10,6 +10,7 @@ export function createLogic(scene, camera, glowTexture) {
     let globalMeltHuman = null;
     let movementDisabled = false;
     let debugActive = false;
+    let groupCenter = new THREE.Vector3();
 
     // The current state of available trait options
     const traitPool = {
@@ -50,6 +51,7 @@ export function createLogic(scene, camera, glowTexture) {
 
         const clusterDist = (currentPhase === PHASES.VOID_PAIR) ? 1200 : 800;
         const clusterCenter = camera.position.clone().add(forward.clone().multiplyScalar(clusterDist));
+        groupCenter.copy(clusterCenter);
 
         // Prepare traits for the round if in CAVE_GROUP
         let roundTraitValues = { left: {}, right: {} };
@@ -73,17 +75,32 @@ export function createLogic(scene, camera, glowTexture) {
 
         for(let i=0; i<count; i++) {
             let x, z;
+            let formationOffset = new THREE.Vector3();
+
             if (currentPhase === PHASES.CAVE_GROUP) {
-                const isRightPair = i >= (count / 2);
-                const pairIndex = i % 2; // 0 or 1 within the pair
+                // Fixed formation: x x   y y
+                // Indices: 0 1   2 3
+                const spacing = 100;
+                const pairGap = 250;
                 
-                const angleOffset = isRightPair ? 0.4 : -0.4;
-                const dist = clusterDist;
-                const center = camera.position.clone().add(forward.clone().applyAxisAngle(new THREE.Vector3(0,1,0), angleOffset).multiplyScalar(dist));
-                
-                const spread = 80;
-                x = center.x + (pairIndex === 0 ? -spread : spread);
-                z = center.z + (pairIndex === 0 ? -spread : spread);
+                let localX = 0;
+                if (count === 4) {
+                    if (i === 0) localX = -pairGap/2 - spacing;
+                    if (i === 1) localX = -pairGap/2;
+                    if (i === 2) localX = pairGap/2;
+                    if (i === 3) localX = pairGap/2 + spacing;
+                } else {
+                    // Final choice (count 2)
+                    localX = (i === 0) ? -pairGap/2 : pairGap/2;
+                }
+
+                formationOffset.set(localX, 0, 0);
+                // Rotate offset to match camera's forward direction
+                const formationQuat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(1,0,0), forward.clone().applyAxisAngle(new THREE.Vector3(0,1,0), Math.PI/2));
+                formationOffset.applyQuaternion(formationQuat);
+
+                x = clusterCenter.x + formationOffset.x;
+                z = clusterCenter.z + formationOffset.z;
             } else {
                 const angle = (i / count) * Math.PI * 2;
                 const radius = 50 + Math.random() * 50; 
@@ -139,6 +156,7 @@ export function createLogic(scene, camera, glowTexture) {
             hPrefab.group.userData.isEscaping = false;
             hPrefab.group.userData.radius = 40;
             hPrefab.group.userData.side = (i < count/2) ? 'left' : 'right';
+            hPrefab.group.userData.formationOffset = formationOffset;
         }
 
         // Link pairs
@@ -254,7 +272,7 @@ export function createLogic(scene, camera, glowTexture) {
     }
 
     return { 
-        dots, humans, tentacles, 
+        dots, humans, tentacles, groupCenter,
         get currentPhase() { return currentPhase; },
         setPhase: (val) => { currentPhase = val; },
         skipPhase: (setupEnv) => triggerPhaseTransition(setupEnv),

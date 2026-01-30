@@ -187,68 +187,25 @@ function animate() {
             // ESCAPE DIRECTION
             let runDir;
             if (isPhase1 && wallGroup && wallGroup.userData && wallGroup.userData.center) {
+                // In Phase 1, the whole group center flees
                 const caveCenter = wallGroup.userData.center;
-                const caveRadius = 5000;
+                const fromCenter = logic.groupCenter.clone().sub(caveCenter).setY(0);
+                runDir = fromCenter.clone().negate().normalize();
                 
-                // Find potential huddle targets (not melting, not self)
-                const others = logic.humans.filter(other => other !== h && !other.userData.isMelting);
-                
-                // 1. Flee to another person not nearby who is near a wall
-                const distantPeersNearWall = others.filter(other => {
-                    const distToSelf = h.position.distanceTo(other.position);
-                    const distToWall = caveRadius - other.position.distanceTo(caveCenter);
-                    return distToSelf > 600 && distToWall < 400;
-                });
-
-                if (distantPeersNearWall.length > 0) {
-                    if (!h.userData.escapeDecision) {
-                        h.userData.escapeDecision = "PeerNearWall";
-                        console.log(`Human ${h.uuid.slice(0,4)}: Fleeing to peer near wall`);
-                    }
-                    const target = distantPeersNearWall[Math.floor(Math.random() * distantPeersNearWall.length)];
-                    runDir = target.position.clone().sub(h.position).setY(0).normalize();
-                    if (h.position.distanceTo(target.position) < 200) h.userData.isEscaping = false;
-                } else {
-                    const fromCenter = h.position.clone().sub(caveCenter).setY(0);
-                    const oppositeWallDir = fromCenter.clone().negate().normalize();
-                    const distantPeers = others.filter(other => h.position.distanceTo(other.position) > 600);
-                    
-                    if (others.length > 0 && distantPeers.length === 0) {
-                        if (!h.userData.escapeDecision) {
-                            h.userData.escapeDecision = "GroupFleeWall";
-                            console.log(`Human ${h.uuid.slice(0,4)}: Clumped, fleeing to opposite wall`);
-                        }
-                        const jitter = new THREE.Vector3((Math.random()-0.5)*0.3, 0, (Math.random()-0.5)*0.3);
-                        runDir = oppositeWallDir.clone().add(jitter).normalize();
-                    } else if (distantPeers.length > 0) {
-                        if (!h.userData.escapeDecision) {
-                            h.userData.escapeDecision = "DistantPeer";
-                            console.log(`Human ${h.uuid.slice(0,4)}: Fleeing to distant peer`);
-                        }
-                        const target = distantPeers[Math.floor(Math.random() * distantPeers.length)];
-                        runDir = target.position.clone().sub(h.position).setY(0).normalize();
-                        if (h.position.distanceTo(target.position) < 200) h.userData.isEscaping = false;
-                    } else {
-                        if (!h.userData.escapeDecision) {
-                            h.userData.escapeDecision = "LoneSurvivorWall";
-                            console.log(`Human ${h.uuid.slice(0,4)}: Last one, fleeing to opposite wall`);
-                        }
-                        runDir = oppositeWallDir;
-                    }
-                }
+                // Move the GROUP center
+                const runSpeed = 650;
+                logic.groupCenter.add(runDir.clone().multiplyScalar(runSpeed * delta));
             } else {
                 runDir = h.position.clone().sub(camera.position).setY(0).normalize();
+                const runSpeed = 780;
+                h.position.add(runDir.multiplyScalar(runSpeed * delta));
             }
 
-            const runSpeed = isPhase1 ? 650 : 780; // 500 * 1.3 and 600 * 1.3
-            
-            // Validate runDir to prevent NaN or zero vector issues
-            if (!runDir || runDir.lengthSq() < 0.001) {
-                 // Fallback if direction is invalid
-                 runDir = h.position.clone().sub(camera.position).setY(0).normalize();
+            // Move individual human towards their formation spot
+            if (isPhase1) {
+                const targetPos = logic.groupCenter.clone().add(h.userData.formationOffset);
+                h.position.lerp(targetPos, delta * 5.0);
             }
-            
-            h.position.add(runDir.multiplyScalar(runSpeed * delta));
 
             // Eased rotation towards run direction
             const targetQuaternion = new THREE.Quaternion();
@@ -266,28 +223,15 @@ function animate() {
 
             // Stop condition for Phase 1
             if (isPhase1) {
-                // If they are clumped and fleeing to wall, give them more time
-                const maxTime = h.userData.escapeDecision === "GroupFleeWall" ? 8.0 : 5.0;
-                
                 h.userData.escapeTimer = (h.userData.escapeTimer || 0) + delta;
-                if (h.userData.escapeTimer > maxTime) {
+                if (h.userData.escapeTimer > 5.0) {
                     h.userData.isEscaping = false;
                     h.userData.escapeTimer = 0;
-                    h.userData.escapeDecision = null;
                 }
             }
 
-            // Despawn logic (ONLY for Phase 0)
-            if (!isPhase1 && dist > 10000) {
-                scene.remove(dot); scene.remove(h); 
-                logic.dots.splice(i, 1);
-                const hIdx = logic.humans.indexOf(h);
-                if (hIdx !== -1) logic.humans.splice(hIdx, 1);
-                
-                if (logic.dots.length === 0) logic.triggerPhaseTransition(setupEnvironment); 
-            }
-            continue;
-        }
+            // Despawn logic for Phase 1 (CAVE_GROUP)
+            if (logic.currentPhase === PHASES.CAVE_GROUP && h.userData.isEscaping && dist > 3000) {
 
         if (!h.userData.isMelting && !logic.getMovementDisabled()) {
             // Eased rotation towards player (Increased speed for snappier feel)
@@ -342,39 +286,25 @@ function animate() {
                 let moveVec = new THREE.Vector3();
                 
                 if (!logic.debugActive && effectiveDist < 12000) {
-                                            // Flee from player together
-                                            const fleeDir = (isPhase1 ? groupCenter.clone() : h.position.clone()).sub(camera.position).setY(0).normalize();
-                                            moveVec.add(fleeDir.multiplyScalar(250)); 
+                    // Flee from player together
+                    const fleeDir = logic.groupCenter.clone().sub(camera.position).setY(0).normalize();
+                    moveVec.add(fleeDir.multiplyScalar(250)); 
                     
-                                            // Cohesion / Separation (Huddling behavior)
-                                            logic.humans.forEach(other => {
-                                                if (other === h) return;
-                                                const toOther = other.position.clone().sub(h.position).setY(0);
-                                                const distToOther = toOther.length();
-                                                
-                                                // Cohesion: Pull towards others (Stronger in CAVE_GROUP)
-                                                const cohesionDist = logic.currentPhase === PHASES.CAVE_GROUP ? 800 : 300;
-                                                const cohesionForce = logic.currentPhase === PHASES.CAVE_GROUP ? 150 : 80;
-                                                if (distToOther < cohesionDist) {
-                                                    moveVec.add(toOther.normalize().multiplyScalar(cohesionForce));
-                                                }
+                    // Apply group movement
+                    logic.groupCenter.add(moveVec.clone().multiplyScalar(delta));
+
+                    // Individual human lerps to their formation spot
+                    const targetPos = logic.groupCenter.clone().add(h.userData.formationOffset);
+                    h.position.lerp(targetPos, delta * 5.0);
                     
-                                                                            // Separation: Avoid overlapping (Stronger and wider)
-                                                                            const separationDist = 200;
-                                                                            if (distToOther < separationDist) {
-                                                                                const force = isPhase1 ? -450 : -200;
-                                                                                moveVec.add(toOther.normalize().multiplyScalar(force));
-                                                                            }
-                                                                        });
-                                                                                            // Leg animation while fleeing
-                    
+                    // Leg animation while fleeing
                     h.userData.legPhase = (h.userData.legPhase || 0) + delta * 15;
                     h.userData.legs[0].rotation.x = Math.sin(h.userData.legPhase) * 0.4;
                     h.userData.legs[1].rotation.x = Math.sin(h.userData.legPhase + Math.PI) * 0.4;
                     h.userData.arms[0].rotation.x = Math.sin(h.userData.legPhase + Math.PI) * 0.3;
                     h.userData.arms[1].rotation.x = Math.sin(h.userData.legPhase) * 0.3;
 
-                    // Rotate to face AWAY from player while fleeing (Much faster rotation)
+                    // Rotate to face AWAY from player while fleeing
                     const targetQuaternion = new THREE.Quaternion();
                     const tempLookAt = camera.position.clone(); tempLookAt.y = h.position.y;
                     h.lookAt(tempLookAt);
