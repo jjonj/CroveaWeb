@@ -242,11 +242,11 @@ function animate() {
             let caveCenter = new THREE.Vector3(0, 0, 0);
             if (wallGroup && wallGroup.userData && wallGroup.userData.center) caveCenter = wallGroup.userData.center;
             const runDir = caveCenter.clone().sub(logic.groupCenter).setY(0).normalize();
-            if (runDir.lengthSq() > 0.01) moveVec.add(runDir.multiplyScalar(800 * delta));
+            if (runDir.lengthSq() > 0.01) moveVec.add(runDir.multiplyScalar(350 * delta)); // Reduced from 800
         } else if (distToPlayer < 12000) {
             // Standard: Flee from player
             const fleeDir = logic.groupCenter.clone().sub(camera.position).setY(0).normalize();
-            moveVec.add(fleeDir.multiplyScalar(250 * delta));
+            moveVec.add(fleeDir.multiplyScalar(120 * delta)); // Reduced from 250
         }
         
         logic.groupCenter.add(moveVec);
