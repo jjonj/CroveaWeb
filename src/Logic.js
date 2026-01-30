@@ -102,12 +102,30 @@ export function createLogic(scene, camera, glowTexture) {
             scene.traverse(obj => {
                 if (obj.userData && obj.userData.center) caveCenter = obj.userData.center;
             });
-            const toCluster = clusterCenter.clone().sub(caveCenter).setY(0);
+
             const caveRadius = 5000;
-            const spawnBuffer = 500;
+            const spawnBuffer = 600;
+            const minPlayerDist = 1500;
+
+            // 1. Initial attempt: Forward from player
+            let toCluster = clusterCenter.clone().sub(caveCenter).setY(0);
             if (toCluster.length() > caveRadius - spawnBuffer) {
                 toCluster.setLength(caveRadius - spawnBuffer);
                 clusterCenter.copy(caveCenter).add(toCluster);
+            }
+
+            // 2. Check if too close to player (usually happens when looking at a wall)
+            if (clusterCenter.distanceTo(camera.position) < minPlayerDist) {
+                // Try spawning them towards the cave center instead
+                const dirToCenter = caveCenter.clone().sub(camera.position).setY(0).normalize();
+                clusterCenter.copy(camera.position).add(dirToCenter.multiplyScalar(clusterDist));
+                
+                // Final clamp to wall just in case
+                toCluster = clusterCenter.clone().sub(caveCenter).setY(0);
+                if (toCluster.length() > caveRadius - spawnBuffer) {
+                    toCluster.setLength(caveRadius - spawnBuffer);
+                    clusterCenter.copy(caveCenter).add(toCluster);
+                }
             }
         }
 
@@ -201,13 +219,16 @@ export function createLogic(scene, camera, glowTexture) {
             const dot = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture, color: 0xff0000, transparent: true, opacity: 0.5, fog: false, depthTest: false }));
             dot.renderOrder = 999; scene.add(dot); dots.push(dot);
             dot.userData = { human: hPrefab.group, heartHeight: hPrefab.heartHeight, phase: Math.random() * 10, gazeTime: 0 };
-            hPrefab.group.userData.traits = traits;
-            hPrefab.group.userData.consumption = 0;
-            hPrefab.group.userData.isMelting = false;
-            hPrefab.group.userData.isEscaping = false;
-            hPrefab.group.userData.radius = 40;
-            hPrefab.group.userData.side = (i < count/2) ? 'left' : 'right';
-            hPrefab.group.userData.formationOffset = formationOffset;
+            
+            Object.assign(hPrefab.group.userData, {
+                traits: traits,
+                consumption: 0,
+                isMelting: false,
+                isEscaping: false,
+                radius: 40,
+                side: (i < count/2) ? 'left' : 'right',
+                formationOffset: formationOffset
+            });
         }
 
         if (currentPhase === PHASES.CAVE_GROUP && count === 4) {
@@ -287,10 +308,12 @@ export function createLogic(scene, camera, glowTexture) {
             const dot = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture, color: 0xff0000, transparent: true, opacity: 0.5, fog: false, depthTest: false }));
             dot.renderOrder = 999; scene.add(dot); dots.push(dot);
             dot.userData = { human: hPrefab.group, heartHeight: hPrefab.heartHeight, phase: Math.random() * 10, gazeTime: 0 };
-            hPrefab.group.userData.traits = traits;
-            hPrefab.group.userData.consumption = 0;
-            hPrefab.group.userData.isMelting = false;
-            hPrefab.group.userData.isEscaping = false;
+            Object.assign(hPrefab.group.userData, {
+                traits: traits,
+                consumption: 0,
+                isMelting: false,
+                isEscaping: false
+            });
         }
     }
 
