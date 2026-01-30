@@ -36,11 +36,25 @@ export function createLogic(scene, camera, glowTexture) {
     };
 
     const formatTraitValue = (trait, val) => {
-        if (trait === 'skinColor' || trait === 'hairColor') {
-            const r = ((val >> 16) & 255) / 255;
-            const g = ((val >> 8) & 255) / 255;
-            const b = (val & 255) / 255;
-            return `RGB(${r.toFixed(2)}, ${g.toFixed(2)}, ${b.toFixed(2)})`;
+        if (trait === 'skinColor') {
+            const skinNames = {
+                0x4b3621: "deep brown",
+                0x8d5524: "medium brown",
+                0xc68642: "light brown",
+                0xf1c27d: "yellowish",
+                0xffdbac: "super light"
+            };
+            return skinNames[val] || val;
+        }
+        if (trait === 'hairColor') {
+            const hairNames = {
+                0x000000: "deep black",
+                0x111111: "jet black",
+                0x1a1a1a: "charcoal",
+                0x221100: "dark brown",
+                0x222222: "off black"
+            };
+            return hairNames[val] || val;
         }
         return val;
     };
