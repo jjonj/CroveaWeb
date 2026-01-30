@@ -192,14 +192,13 @@ function animate() {
             
             // ESCAPE DIRECTION
             let runDir;
-            if (isPhase1 && wallGroup && wallGroup.userData && wallGroup.userData.center) {
-                // In Phase 1, the whole group center flees
-                const caveCenter = wallGroup.userData.center;
-                const fromCenter = logic.groupCenter.clone().sub(caveCenter).setY(0);
-                runDir = fromCenter.clone().negate().normalize();
+            if (isPhase1) {
+                // In Phase 1, the whole group center flees away from the player
+                runDir = logic.groupCenter.clone().sub(camera.position).setY(0).normalize();
+                if (runDir.lengthSq() < 0.01) runDir.set(0,0,1); // Fallback
                 
                 // Move the GROUP center
-                const runSpeed = 650;
+                const runSpeed = 800;
                 logic.groupCenter.add(runDir.clone().multiplyScalar(runSpeed * delta));
             } else {
                 runDir = h.position.clone().sub(camera.position).setY(0).normalize();
@@ -231,15 +230,26 @@ function animate() {
             if (isPhase1) {
                 h.userData.escapeTimer = (h.userData.escapeTimer || 0) + delta;
                 if (h.userData.escapeTimer > 5.0) {
-                    h.userData.isEscaping = false;
-                    h.userData.escapeTimer = 0;
+                    // Force despawn after 5 seconds if distance not met
+                    dist = 9999; 
                 }
             }
 
             // Despawn logic for Phase 1 (CAVE_GROUP)
-            if (logic.currentPhase === PHASES.CAVE_GROUP && h.userData.isEscaping && dist > 3000) {
-                // Already handled in the removal loop at the bottom? 
-                // No, let's keep it consistent.
+            if (logic.currentPhase === PHASES.CAVE_GROUP && h.userData.isEscaping && dist > 1500) {
+                scene.remove(dot); scene.remove(h); 
+                logic.dots.splice(i, 1);
+                const hIdx = logic.humans.indexOf(h);
+                if (hIdx !== -1) logic.humans.splice(hIdx, 1);
+
+                if (logic.dots.length === 0) {
+                    if (logic.isPhaseComplete) {
+                        logic.triggerPhaseTransition(setupEnvironment);
+                    }
+                    else {
+                        logic.spawn();
+                    }
+                }
             }
             continue;
         }
