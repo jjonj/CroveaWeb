@@ -570,6 +570,19 @@ function animate() {
         // Sync playback rate to pulse speed
         // Baseline pulseSpeed is 1.5 (slow) up to 20.0 (fast)
         heartbeatSound.playbackRate = 0.7 + (nearestPulseSpeed - 1.5) * (1.8 / 18.5);
+
+        // DYNAMIC CAMERA HEIGHT (Sigmoid)
+        // 40 units (ground) up to 220 units (head level+)
+        // Transition range: 1200 distance down to 400
+        const lowY = 40, highY = 220;
+        const t = Math.max(0, Math.min(1, (nearestDist - 400) / (1200 - 400)));
+        const x = (1 - t) * 10 - 5; // Maps 0-1 to 5 to -5 range for sigmoid
+        const hFactor = 1 / (1 + Math.exp(-x));
+        camera.position.y = lowY + (highY - lowY) * hFactor;
+    } else if (logic.currentPhase !== PHASES.DAWN && logic.currentPhase !== PHASES.FOREST_SURVIVOR) {
+        heartbeatSound.volume = 0;
+        // Default ground height
+        camera.position.y = 40;
     } else {
         heartbeatSound.volume = 0;
     }
