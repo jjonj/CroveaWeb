@@ -18,53 +18,84 @@ export function createEnvironment(scene, camera) {
     camera.add(playerLight);
     scene.add(camera);
 
-    // Create procedural textured beige for ground
-    const groundCanvas = document.createElement('canvas');
-    groundCanvas.width = 512; groundCanvas.height = 512;
-    const gCtx = groundCanvas.getContext('2d');
-    gCtx.fillStyle = '#a68d71'; // More brownish beige
-    gCtx.fillRect(0,0,512,512);
-    
-    // Add noise/grit
-    for(let i=0; i<40000; i++) {
-        const shade = Math.random();
-        if (shade > 0.8) gCtx.fillStyle = '#8b7355';
-        else if (shade > 0.4) gCtx.fillStyle = '#b69d81';
-        else gCtx.fillStyle = '#967d61';
-        gCtx.fillRect(Math.random()*512, Math.random()*512, 1, 1);
-    }
-    
-    // Add some larger dirt/rock patches
-    for(let i=0; i<60; i++) {
-        gCtx.fillStyle = 'rgba(100, 80, 60, 0.15)';
-        gCtx.beginPath();
-        const r = Math.random()*40 + 10;
-        gCtx.arc(Math.random()*512, Math.random()*512, r, 0, Math.PI*2);
-        gCtx.fill();
-    }
+    // --- Procedural Textures ---
 
-    // Add some fine "cracks" or lines for texture
-    gCtx.strokeStyle = 'rgba(60, 50, 40, 0.2)';
-    for(let i=0; i<30; i++) {
-        gCtx.lineWidth = 0.5;
-        gCtx.beginPath();
-        let x = Math.random()*512, y = Math.random()*512;
-        gCtx.moveTo(x, y);
-        for(let j=0; j<5; j++) {
-            x += (Math.random()-0.5)*30;
-            y += (Math.random()-0.5)*30;
-            gCtx.lineTo(x, y);
+    function createForestGroundTex() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512; canvas.height = 512;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#4a2f1b'; // Deeper, more saturated brown
+        ctx.fillRect(0,0,512,512);
+        
+        // Add soil variations
+        for(let i=0; i<40000; i++) {
+            const shade = Math.random();
+            if (shade > 0.8) ctx.fillStyle = '#2e1c0e';
+            else if (shade > 0.4) ctx.fillStyle = '#5c3d26';
+            else ctx.fillStyle = '#1f140a';
+            ctx.fillRect(Math.random()*512, Math.random()*512, 1, 1);
         }
-        gCtx.stroke();
+        
+        // Mossy patches
+        for(let i=0; i<40; i++) {
+            ctx.fillStyle = 'rgba(40, 60, 20, 0.2)';
+            ctx.beginPath();
+            ctx.arc(Math.random()*512, Math.random()*512, Math.random()*60+20, 0, Math.PI*2);
+            ctx.fill();
+        }
+
+        // Pine needles / twigs
+        ctx.strokeStyle = 'rgba(20, 10, 5, 0.3)';
+        for(let i=0; i<150; i++) {
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            const x = Math.random()*512, y = Math.random()*512;
+            const len = Math.random()*15+5;
+            const ang = Math.random()*Math.PI*2;
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + Math.cos(ang)*len, y + Math.sin(ang)*len);
+            ctx.stroke();
+        }
+
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(50, 50);
+        return tex;
     }
 
-    const groundTex = new THREE.CanvasTexture(groundCanvas);
-    groundTex.wrapS = THREE.RepeatWrapping;
-    groundTex.wrapT = THREE.RepeatWrapping;
-    groundTex.repeat.set(50, 50);
+    function createCaveGroundTex() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512; canvas.height = 512;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#a68d71'; // Brownish beige
+        ctx.fillRect(0,0,512,512);
+        
+        for(let i=0; i<40000; i++) {
+            const shade = Math.random();
+            if (shade > 0.8) ctx.fillStyle = '#8b7355';
+            else if (shade > 0.4) ctx.fillStyle = '#b69d81';
+            else ctx.fillStyle = '#967d61';
+            ctx.fillRect(Math.random()*512, Math.random()*512, 1, 1);
+        }
+        
+        for(let i=0; i<60; i++) {
+            ctx.fillStyle = 'rgba(100, 80, 60, 0.15)';
+            ctx.beginPath();
+            ctx.arc(Math.random()*512, Math.random()*512, Math.random()*40+10, 0, Math.PI*2);
+            ctx.fill();
+        }
+
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(50, 50);
+        return tex;
+    }
+
+    const forestGroundTex = createForestGroundTex();
+    const caveGroundTex = createCaveGroundTex();
 
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(40000, 40000), new THREE.MeshStandardMaterial({ 
-        map: groundTex,
+        map: forestGroundTex,
         roughness: 1.0 
     }));
     ground.rotation.x = -Math.PI / 2;
@@ -112,6 +143,7 @@ export function createEnvironment(scene, camera) {
         stemGroup.clear(); wallGroup.clear();
         sunriseState.sunDisk = null;
         sunriseState.pool = null;
+        ground.material.map = (isCave) ? caveGroundTex : forestGroundTex;
 
         if (isForest) {
             scene.background = new THREE.Color(0x050505);
@@ -151,6 +183,18 @@ export function createEnvironment(scene, camera) {
             const embers = new THREE.Mesh(emberGeo, emberMat);
             embers.position.set(0, 2, 0);
             fireGroup.add(embers);
+
+            // Campfire Glow Sprite
+            const glowCanvas = document.createElement('canvas'); glowCanvas.width = 64; glowCanvas.height = 64;
+            const gctx = glowCanvas.getContext('2d');
+            const grad = gctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            grad.addColorStop(0, 'rgba(255, 80, 0, 1)'); grad.addColorStop(0.5, 'rgba(255, 40, 0, 0.3)'); grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            gctx.fillStyle = grad; gctx.fillRect(0, 0, 64, 64);
+            const glowTex = new THREE.CanvasTexture(glowCanvas);
+            const fireGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, transparent: true, blending: THREE.AdditiveBlending }));
+            fireGlow.scale.set(150, 150, 1);
+            fireGlow.position.set(0, 20, 0);
+            fireGroup.add(fireGlow);
 
             stemGroup.add(fireGroup);
             return;
