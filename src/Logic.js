@@ -15,7 +15,7 @@ export function createLogic(scene, camera, glowTexture) {
     // The current state of available trait options
     const traitPool = {
         skinColor: [...SKINS],
-        hairColor: [0x000000, 0x111111, 0x1a1a1a, 0x221100, 0x222222], // Shades of black/dark brown
+        hairColor: [0x5c0909, 0x3d2314, 0x000000, 0x8b7500, 0x1a2e1a], // dark red, dark brown, black, dark blond, dark green
         height: [0.8, 0.9, 1.0, 1.1, 1.2],
         hairStyle: ['long', 'short'],
         roundFace: [true, false],
@@ -48,11 +48,11 @@ export function createLogic(scene, camera, glowTexture) {
         }
         if (trait === 'hairColor') {
             const hairNames = {
-                0x000000: "deep black",
-                0x111111: "jet black",
-                0x1a1a1a: "charcoal",
-                0x221100: "dark brown",
-                0x222222: "off black"
+                0x5c0909: "dark red",
+                0x3d2314: "dark brown",
+                0x000000: "black",
+                0x8b7500: "dark blond",
+                0x1a2e1a: "dark green"
             };
             return hairNames[val] || val;
         }
@@ -70,6 +70,7 @@ export function createLogic(scene, camera, glowTexture) {
         dots.length = 0; humans.length = 0;
         const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).setY(0).normalize();
         
+        let count = (currentPhase === PHASES.VOID_PAIR) ? 2 : 4;
         const clusterDist = (currentPhase === PHASES.VOID_PAIR) ? 1200 : 800;
         const clusterCenter = camera.position.clone().add(forward.clone().multiplyScalar(clusterDist));
         groupCenter.copy(clusterCenter).setY(0);
