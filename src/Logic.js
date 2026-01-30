@@ -18,7 +18,7 @@ export function createLogic(scene, camera, glowTexture) {
         hairColor: [0x5c0909, 0x3d2314, 0x000000, 0x8b7500, 0x1a2e1a], // dark red, dark brown, black, dark blond, dark green
         height: [0.8, 0.9, 1.0, 1.1, 1.2],
         hairStyle: ['long', 'short'],
-        roundFace: [true, false],
+        faceType: [0, 1, 2, 3, 4],
         broadShoulders: [true, false]
     };
 
@@ -30,7 +30,7 @@ export function createLogic(scene, camera, glowTexture) {
         hairColor: 0x000000,
         height: 1.0,
         hairStyle: 'long',
-        roundFace: false,
+        faceType: 0,
         gender: 'female',
         broadShoulders: false
     };
@@ -55,6 +55,10 @@ export function createLogic(scene, camera, glowTexture) {
                 0x1a2e1a: "dark green"
             };
             return hairNames[val] || val;
+        }
+        if (trait === 'faceType') {
+            const faceNames = ["The Observer", "The Grinner", "The Stoic", "The Delicate", "The Stern"];
+            return faceNames[val] || `Face ${val}`;
         }
         return val;
     };
@@ -168,8 +172,8 @@ export function createLogic(scene, camera, glowTexture) {
                     height: i === 0 ? 1.1 : 0.9,
                     broadShoulders: i === 0,
                     hairStyle: i === 0 ? 'short' : 'long',
-                    roundFace: i === 1,
-                    hairColor: 0x000000
+                    hairColor: 0x000000,
+                    faceType: i === 0 ? 4 : 0 // Stern male, Observer female
                 };
             } else if (currentPhase === PHASES.CAVE_GROUP) {
                 const isRightSide = i >= (count / 2);
