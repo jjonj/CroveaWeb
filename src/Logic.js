@@ -31,6 +31,9 @@ export function createLogic(scene, camera, glowTexture) {
         dots.length = 0; humans.length = 0;
         const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).setY(0).normalize();
         
+        // Local variable for tracking group centers during this spawn
+        const groupCenters = {}; 
+
         let count = 0;
         if (currentPhase === PHASES.VOID_PAIR) {
             count = 2;
@@ -47,11 +50,29 @@ export function createLogic(scene, camera, glowTexture) {
         for(let i=0; i<count; i++) {
             let x, z;
             if (currentPhase === PHASES.CAVE_GROUP) {
-                // Random distribution in cave (2500 is the cave radius from Environment.js)
-                const angle = Math.random() * Math.PI * 2;
-                const r = Math.random() * 2000; // Keep away from the very edge (2500)
-                x = camera.position.x + Math.cos(angle) * r;
-                z = camera.position.z + Math.sin(angle) * r;
+                // Spawn in groups in the expanded cave (Radius 5000)
+                // Determine group index (e.g., 2 groups)
+                const groupCount = 2; 
+                const groupIndex = i % groupCount;
+                
+                // If it's the first member of a group, define the group center
+                if (!groupCenters[groupIndex]) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const r = 2500 + Math.random() * 1500; // Place group centers 2500-4000 units away
+                    groupCenters[groupIndex] = {
+                        x: camera.position.x + Math.cos(angle) * r,
+                        z: camera.position.z + Math.sin(angle) * r
+                    };
+                }
+
+                // Spawn relative to group center with some spread
+                const center = groupCenters[groupIndex];
+                const spread = 150; // Radius of the group cluster
+                const subAngle = Math.random() * Math.PI * 2;
+                const subR = Math.random() * spread;
+                
+                x = center.x + Math.cos(subAngle) * subR;
+                z = center.z + Math.sin(subAngle) * subR;
             } else {
                 const angle = (i / count) * Math.PI * 2;
                 const radius = 50 + Math.random() * 50; 

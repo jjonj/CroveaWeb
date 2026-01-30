@@ -10,7 +10,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-const { setupEnvironment, defaultFog, wallGroup } = createEnvironment(scene, camera);
+const { setupEnvironment, defaultFog, wallGroup, sunriseState } = createEnvironment(scene, camera);
 const glowTexture = createGlowTexture();
 const logic = createLogic(scene, camera, glowTexture);
 
@@ -56,6 +56,8 @@ const meltSound = new Audio('melteffect.wav');
 meltSound.loop = true;
 
 let localPlayerHuman = null;
+let reflectionHuman = null;
+let sunriseProgress = 0;
 
 function animate() {
     requestAnimationFrame(animate);
@@ -67,11 +69,62 @@ function animate() {
         if (!localPlayerHuman) {
             localPlayerHuman = new HumanPrefab(logic.survivorTraits);
             scene.add(localPlayerHuman.group);
+            
+            // Initial position for the survivor (center of scene)
+            localPlayerHuman.group.position.set(camera.position.x, 0, camera.position.z);
+            localPlayerHuman.group.rotation.y = Math.PI; // Face the sun (assuming sun is at -Z)
+
+            // THIRD PERSON CAMERA SETUP
+            // Move camera behind and up
+            const offset = new THREE.Vector3(0, 150, 400); // Behind and up
+            camera.position.copy(localPlayerHuman.group.position).add(offset);
+            camera.lookAt(localPlayerHuman.group.position.x, localPlayerHuman.group.position.y + 100, localPlayerHuman.group.position.z - 1000);
+
+            // Create reflection "ghost"
+            reflectionHuman = new HumanPrefab(logic.survivorTraits);
+            reflectionHuman.group.scale.y *= -1; // Invert vertically
+            scene.add(reflectionHuman.group);
+            
+            // Dim the reflection
+            reflectionHuman.group.traverse(child => {
+                if (child.material) {
+                    child.material = child.material.clone();
+                    child.material.transparent = true;
+                    child.material.opacity = 0.4;
+                }
+            });
         }
-        localPlayerHuman.group.position.copy(camera.position);
-        localPlayerHuman.group.position.y = 0;
-        const targetRot = camera.rotation.y + Math.PI;
-        localPlayerHuman.group.rotation.y = targetRot;
+        
+        // No longer locking player to camera position in Dawn phase (Third Person now)
+
+        // Position reflection
+        if (sunriseState.pool) {
+            reflectionHuman.group.position.copy(localPlayerHuman.group.position);
+            reflectionHuman.group.position.y = -2; // Slightly below ground/pool
+            reflectionHuman.group.rotation.y = localPlayerHuman.group.rotation.y;
+        }
+
+        // Dynamic Sunrise Logic
+        sunriseProgress = Math.min(1.0, sunriseProgress + delta * 0.02); // 50 seconds to full sunrise
+        
+        if (sunriseState.sunDisk) {
+            // Move sun up
+            sunriseState.sunDisk.position.y = -500 + (sunriseProgress * 2000);
+            // Change color from red to yellow-white
+            const sunColor = new THREE.Color(0xff0000).lerp(new THREE.Color(0xffffcc), sunriseProgress);
+            sunriseState.sunDisk.material.color.copy(sunColor);
+            
+            // Lighting adjustments
+            sunriseState.sunLight.intensity = 0.2 + (sunriseProgress * 1.5);
+            sunriseState.sunLight.color.copy(sunColor);
+            sunriseState.hemiLight.intensity = 0.2 + (sunriseProgress * 0.8);
+            
+            // Fog adjustments
+            const fogColor = new THREE.Color(0x1a0505).lerp(new THREE.Color(0x87ceeb), sunriseProgress);
+            scene.background.copy(fogColor);
+            scene.fog.color.copy(fogColor);
+            scene.fog.density = 0.0002 * (1.0 - sunriseProgress * 0.5);
+        }
     }
 
     const playerMoving = moveF || moveB || moveL || moveR;
@@ -79,7 +132,7 @@ function animate() {
     if (controls.isLocked && !logic.getMovementDisabled()) {
         velocity.x -= velocity.x * 10 * delta; velocity.z -= velocity.z * 10 * delta;
         direction.z = Number(moveF) - Number(moveB); direction.x = Number(moveR) - Number(moveL); direction.normalize();
-        const speed = 800;
+        const speed = 1040; // 800 * 1.3
         if (moveF || moveB) velocity.z -= direction.z * speed * 10 * delta;
         if (moveL || moveR) velocity.x -= direction.x * speed * 10 * delta;
         controls.moveRight(-velocity.x * delta); controls.moveForward(-velocity.z * delta);
@@ -102,6 +155,7 @@ function animate() {
         const h = dot.userData.human;
         const dist = h.position.distanceTo(camera.position);
         const isPhase1 = logic.currentPhase === PHASES.VOID_PAIR;
+        const isDawn = logic.currentPhase === PHASES.DAWN;
         const effectiveDist = isPhase1 ? distToGroup : dist;
         
         // Heartbeat pulse speed increases as distance decreases (faster when close)
@@ -114,43 +168,86 @@ function animate() {
         const p2 = Math.pow(Math.max(0, Math.sin(t - 0.7)), 20) * 0.5; // Distinct second beat
         const pulseFactor = p1 + p2;
         
-        dot.material.opacity = 0.3 + pulseFactor * 0.7; // Modulate opacity
-        dot.scale.setScalar(60 + pulseFactor * 140); // Modulate size
+        // Disable pulse and gaze in Dawn phase
+        if (isDawn) {
+            dot.material.opacity = 0;
+            dot.scale.setScalar(0);
+        } else {
+            dot.material.opacity = 0.3 + pulseFactor * 0.7; // Modulate opacity
+            dot.scale.setScalar(60 + pulseFactor * 140); // Modulate size
+        }
+        
         dot.position.copy(h.position); dot.position.y = h.position.y + (dot.userData.heartHeight * h.scale.y);
 
-        const isGazing = h.userData.hitSphere ? raycaster.intersectObject(h.userData.hitSphere).length > 0 : false;
+        const isGazing = (h.userData.hitSphere && !isDawn) ? raycaster.intersectObject(h.userData.hitSphere).length > 0 : false;
 
         if (h.userData.isEscaping) {
             const isPhase1 = logic.currentPhase === PHASES.CAVE_GROUP;
             
             // ESCAPE DIRECTION
             let runDir;
-            if (isPhase1) {
-                // Find a random other human to huddle with
+            if (isPhase1 && wallGroup && wallGroup.userData && wallGroup.userData.center) {
+                const caveCenter = wallGroup.userData.center;
+                const caveRadius = 5000;
+                
+                // Find potential huddle targets (not melting, not self)
                 const others = logic.humans.filter(other => other !== h && !other.userData.isMelting);
-                if (others.length > 0) {
-                    const target = others[Math.floor(Math.random() * others.length)];
-                    runDir = target.position.clone().sub(h.position).setY(0).normalize();
-                    
-                    // Stop if close to target
-                    if (h.position.distanceTo(target.position) < 150) {
-                        h.userData.isEscaping = false;
-                        h.userData.escapeTimer = 0;
+                
+                // 1. Flee to another person not nearby who is near a wall
+                const distantPeersNearWall = others.filter(other => {
+                    const distToSelf = h.position.distanceTo(other.position);
+                    const distToWall = caveRadius - other.position.distanceTo(caveCenter);
+                    return distToSelf > 600 && distToWall < 400;
+                });
+
+                if (distantPeersNearWall.length > 0) {
+                    if (!h.userData.escapeDecision) {
+                        h.userData.escapeDecision = "PeerNearWall";
+                        console.log(`Human ${h.uuid.slice(0,4)}: Fleeing to peer near wall`);
                     }
-                } else if (wallGroup && wallGroup.userData && wallGroup.userData.center) {
-                    // Last survivor: flee to opposite wall
-                    const caveCenter = wallGroup.userData.center;
-                    const fromCenter = h.position.clone().sub(caveCenter).setY(0);
-                    runDir = fromCenter.clone().negate().normalize();
+                    const target = distantPeersNearWall[Math.floor(Math.random() * distantPeersNearWall.length)];
+                    runDir = target.position.clone().sub(h.position).setY(0).normalize();
+                    if (h.position.distanceTo(target.position) < 200) h.userData.isEscaping = false;
                 } else {
-                    runDir = h.position.clone().sub(camera.position).setY(0).normalize();
+                    const fromCenter = h.position.clone().sub(caveCenter).setY(0);
+                    const oppositeWallDir = fromCenter.clone().negate().normalize();
+                    const distantPeers = others.filter(other => h.position.distanceTo(other.position) > 600);
+                    
+                    if (others.length > 0 && distantPeers.length === 0) {
+                        if (!h.userData.escapeDecision) {
+                            h.userData.escapeDecision = "GroupFleeWall";
+                            console.log(`Human ${h.uuid.slice(0,4)}: Clumped, fleeing to opposite wall`);
+                        }
+                        const jitter = new THREE.Vector3((Math.random()-0.5)*0.3, 0, (Math.random()-0.5)*0.3);
+                        runDir = oppositeWallDir.clone().add(jitter).normalize();
+                    } else if (distantPeers.length > 0) {
+                        if (!h.userData.escapeDecision) {
+                            h.userData.escapeDecision = "DistantPeer";
+                            console.log(`Human ${h.uuid.slice(0,4)}: Fleeing to distant peer`);
+                        }
+                        const target = distantPeers[Math.floor(Math.random() * distantPeers.length)];
+                        runDir = target.position.clone().sub(h.position).setY(0).normalize();
+                        if (h.position.distanceTo(target.position) < 200) h.userData.isEscaping = false;
+                    } else {
+                        if (!h.userData.escapeDecision) {
+                            h.userData.escapeDecision = "LoneSurvivorWall";
+                            console.log(`Human ${h.uuid.slice(0,4)}: Last one, fleeing to opposite wall`);
+                        }
+                        runDir = oppositeWallDir;
+                    }
                 }
             } else {
-                // Default Phase 0: Run directly away from player
                 runDir = h.position.clone().sub(camera.position).setY(0).normalize();
             }
 
-            const runSpeed = isPhase1 ? 500 : 600;
+            const runSpeed = isPhase1 ? 650 : 780; // 500 * 1.3 and 600 * 1.3
+            
+            // Validate runDir to prevent NaN or zero vector issues
+            if (!runDir || runDir.lengthSq() < 0.001) {
+                 // Fallback if direction is invalid
+                 runDir = h.position.clone().sub(camera.position).setY(0).normalize();
+            }
+            
             h.position.add(runDir.multiplyScalar(runSpeed * delta));
 
             // Eased rotation towards run direction
@@ -158,7 +255,7 @@ function animate() {
             const lookPos = h.position.clone().add(runDir);
             h.lookAt(lookPos);
             targetQuaternion.copy(h.quaternion);
-            h.quaternion.slerp(targetQuaternion, delta * 10);
+            h.quaternion.slerp(targetQuaternion, delta * 3.0);
 
             // Leg animation
             h.userData.legPhase = (h.userData.legPhase || 0) + delta * 20;
@@ -169,10 +266,14 @@ function animate() {
 
             // Stop condition for Phase 1
             if (isPhase1) {
+                // If they are clumped and fleeing to wall, give them more time
+                const maxTime = h.userData.escapeDecision === "GroupFleeWall" ? 8.0 : 5.0;
+                
                 h.userData.escapeTimer = (h.userData.escapeTimer || 0) + delta;
-                if (h.userData.escapeTimer > 3.0) {
+                if (h.userData.escapeTimer > maxTime) {
                     h.userData.isEscaping = false;
                     h.userData.escapeTimer = 0;
+                    h.userData.escapeDecision = null;
                 }
             }
 
@@ -247,14 +348,14 @@ function animate() {
                                                     moveVec.add(toOther.normalize().multiplyScalar(cohesionForce));
                                                 }
                     
-                                                // Separation: Avoid overlapping
-                                                const separationDist = 120;
-                                                if (distToOther < separationDist) {
-                                                    moveVec.add(toOther.normalize().multiplyScalar(-200));
-                                                }
-                                            });
-                    
-                                            // Leg animation while fleeing
+                                                                            // Separation: Avoid overlapping (Stronger and wider)
+                                                                            const separationDist = 200;
+                                                                            if (distToOther < separationDist) {
+                                                                                const force = isPhase1 ? -450 : -200;
+                                                                                moveVec.add(toOther.normalize().multiplyScalar(force));
+                                                                            }
+                                                                        });
+                                                                                            // Leg animation while fleeing
                     
                     h.userData.legPhase = (h.userData.legPhase || 0) + delta * 15;
                     h.userData.legs[0].rotation.x = Math.sin(h.userData.legPhase) * 0.4;
@@ -268,7 +369,7 @@ function animate() {
                     h.lookAt(tempLookAt);
                     h.rotation.y += Math.PI; 
                     targetQuaternion.copy(h.quaternion);
-                    h.quaternion.slerp(targetQuaternion, delta * 10);
+                    h.quaternion.slerp(targetQuaternion, delta * 3.0);
                 } else {
                     // Reset animations if not fleeing
                     h.userData.legs[0].rotation.x = 0;
@@ -281,7 +382,7 @@ function animate() {
 
                 // CAVE COLLISION (Phase 2 & 3)
                 if ((logic.currentPhase === PHASES.CAVE_GROUP || logic.currentPhase === PHASES.FINAL_FAMILY) && wallGroup && wallGroup.userData && wallGroup.userData.center) {
-                    const caveRadius = 2500;
+                    const caveRadius = 5000;
                     const buffer = 60;
                     const center = wallGroup.userData.center;
                     const distFromCenter = new THREE.Vector3(h.position.x - center.x, 0, h.position.z - center.z);
@@ -326,6 +427,7 @@ function animate() {
                     if (logic.currentPhase === PHASES.CAVE_GROUP) {
                         logic.humans.forEach(otherH => {
                             otherH.userData.isEscaping = false;
+                            otherH.userData.escapeDecision = null; // Reset for new logs
                         });
                     }
 
@@ -342,7 +444,7 @@ function animate() {
         }
     }
 
-    if (activeGazeDot && !playerMoving) {
+    if (activeGazeDot && !playerMoving && logic.currentPhase !== PHASES.DAWN) {
         if (meltSound.paused) meltSound.play();
     } else {
         if (!meltSound.paused) {
@@ -351,7 +453,7 @@ function animate() {
         }
     }
 
-    if (!activeGazeDot && !logic.getMovementDisabled()) gazeBar.style.display = 'none';
+    if (!activeGazeDot && !logic.getMovementDisabled() || logic.currentPhase === PHASES.DAWN) gazeBar.style.display = 'none';
 
     logic.tentacles.forEach((t, i) => {
         if (activeGazeDot && !playerMoving) {
