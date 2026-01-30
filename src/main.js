@@ -56,6 +56,9 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('mousemove', (e) => {
     if (controls.isLocked && logic.currentPhase === PHASES.FOREST_SURVIVOR) {
         forestOrbitAngle -= e.movementX * 0.005;
+        forestOrbitPitch += e.movementY * 0.005;
+        // Clamp pitch to stay above ground and not go directly overhead
+        forestOrbitPitch = Math.max(0.1, Math.min(Math.PI / 2.2, forestOrbitPitch));
     }
 });
 window.addEventListener('keyup', (e) => {
@@ -202,11 +205,13 @@ function animate() {
     if (logic.currentPhase === PHASES.FOREST_SURVIVOR && localPlayerHuman) {
         const orbitRadius = 400;
         const targetPos = localPlayerHuman.group.position;
-        camera.position.set(
-            targetPos.x + Math.cos(forestOrbitAngle) * orbitRadius,
-            targetPos.y + 120,
-            targetPos.z + Math.sin(forestOrbitAngle) * orbitRadius
-        );
+        
+        // Spherical coordinates for orbit
+        const x = targetPos.x + orbitRadius * Math.cos(forestOrbitAngle) * Math.cos(forestOrbitPitch);
+        const y = targetPos.y + orbitRadius * Math.sin(forestOrbitPitch);
+        const z = targetPos.z + orbitRadius * Math.sin(forestOrbitAngle) * Math.cos(forestOrbitPitch);
+        
+        camera.position.set(x, y, z);
         camera.lookAt(targetPos.x, targetPos.y + 20, targetPos.z);
     }
 
@@ -304,20 +309,24 @@ function animate() {
             h.userData.legPhase = (h.userData.legPhase || 0) + delta * 20;
             h.userData.legs[0].rotation.x = Math.sin(h.userData.legPhase) * 0.4;
             h.userData.legs[1].rotation.x = Math.sin(h.userData.legPhase + Math.PI) * 0.4;
-            h.userData.arms[0].rotation.x = Math.sin(h.userData.legPhase + Math.PI) * 0.3;
-            h.userData.arms[1].rotation.x = Math.sin(h.userData.legPhase) * 0.3;
+            
+            // Fleeing arms swing
+            h.userData.arms[0].shoulder.rotation.x = Math.sin(h.userData.legPhase + Math.PI) * 0.6;
+            h.userData.arms[1].shoulder.rotation.x = Math.sin(h.userData.legPhase) * 0.6;
+            h.userData.arms[0].elbow.rotation.x = -0.5;
+            h.userData.arms[1].elbow.rotation.x = -0.5;
+            h.userData.arms[0].shoulder.rotation.y = 0;
+            h.userData.arms[1].shoulder.rotation.y = 0;
+            h.userData.arms[0].shoulder.rotation.z = 0.2;
+            h.userData.arms[1].shoulder.rotation.z = -0.2;
 
             // Stop condition for Phase 1
             if (isPhase1) {
                 h.userData.escapeTimer = (h.userData.escapeTimer || 0) + delta;
-                if (h.userData.escapeTimer > 5.0) {
-                    // Force despawn after 5 seconds if distance not met
-                    dist = 9999; 
-                }
             }
 
             // Despawn logic for Phase 1 (CAVE_GROUP)
-            if (logic.currentPhase === PHASES.CAVE_GROUP && h.userData.isEscaping && dist > 1500) {
+            if (isPhase1 && h.userData.isEscaping && h.userData.escapeTimer > 2.0) {
                 scene.remove(dot); scene.remove(h); 
                 logic.dots.splice(i, 1);
                 const hIdx = logic.humans.indexOf(h);
@@ -349,11 +358,26 @@ function animate() {
                 h.position.x += (Math.random() - 0.5) * shakeAmount;
                 h.position.z += (Math.random() - 0.5) * shakeAmount;
 
-                // Reset animations when stopped
+                // Move hands towards chin
+                const armL = h.userData.arms[0];
+                const armR = h.userData.arms[1];
+                
+                // Shoulder rotations to bring arms in
+                armL.shoulder.rotation.x = -0.8;
+                armL.shoulder.rotation.y = 0.5;
+                armL.shoulder.rotation.z = 0.4;
+                
+                armR.shoulder.rotation.x = -0.8;
+                armR.shoulder.rotation.y = -0.5;
+                armR.shoulder.rotation.z = -0.4;
+                
+                // Elbow rotations to fold arms up to chin
+                armL.elbow.rotation.x = -2.0;
+                armR.elbow.rotation.x = -2.0;
+
+                // Reset legs when stopped
                 h.userData.legs[0].rotation.x = 0;
                 h.userData.legs[1].rotation.x = 0;
-                h.userData.arms[0].rotation.x = 0;
-                h.userData.arms[1].rotation.x = 0;
 
                 if (isGazing && (!logic.getGlobalMeltHuman() || logic.getGlobalMeltHuman() === h)) {
                     activeGazeDot = dot; dot.userData.gazeTime += delta;
@@ -425,8 +449,16 @@ function animate() {
                     h.userData.legPhase = (h.userData.legPhase || 0) + delta * 15;
                     h.userData.legs[0].rotation.x = Math.sin(h.userData.legPhase) * 0.4;
                     h.userData.legs[1].rotation.x = Math.sin(h.userData.legPhase + Math.PI) * 0.4;
-                    h.userData.arms[0].rotation.x = Math.sin(h.userData.legPhase + Math.PI) * 0.3;
-                    h.userData.arms[1].rotation.x = Math.sin(h.userData.legPhase) * 0.3;
+                    
+                    // Fleeing arms swing (two-part)
+                    h.userData.arms[0].shoulder.rotation.x = Math.sin(h.userData.legPhase + Math.PI) * 0.6;
+                    h.userData.arms[1].shoulder.rotation.x = Math.sin(h.userData.legPhase) * 0.6;
+                    h.userData.arms[0].elbow.rotation.x = -0.5;
+                    h.userData.arms[1].elbow.rotation.x = -0.5;
+                    h.userData.arms[0].shoulder.rotation.y = 0;
+                    h.userData.arms[1].shoulder.rotation.y = 0;
+                    h.userData.arms[0].shoulder.rotation.z = 0.2;
+                    h.userData.arms[1].shoulder.rotation.z = -0.2;
 
                     // Rotate to face AWAY from player while fleeing
                     const targetQuaternion = new THREE.Quaternion();
@@ -439,8 +471,10 @@ function animate() {
                     // Reset animations if not fleeing
                     h.userData.legs[0].rotation.x = 0;
                     h.userData.legs[1].rotation.x = 0;
-                    h.userData.arms[0].rotation.x = 0;
-                    h.userData.arms[1].rotation.x = 0;
+                    h.userData.arms.forEach((arm, idx) => {
+                        arm.shoulder.rotation.set(0, 0, idx === 0 ? 0.2 : -0.2);
+                        arm.elbow.rotation.set(0, 0, 0);
+                    });
                 }
 
                 h.position.add(moveVec.multiplyScalar(delta));
@@ -462,7 +496,10 @@ function animate() {
                         
                         // Stop animations
                         h.userData.legs[0].rotation.x = 0; h.userData.legs[1].rotation.x = 0;
-                        h.userData.arms[0].rotation.x = 0; h.userData.arms[1].rotation.x = 0;
+                        h.userData.arms.forEach((arm, idx) => {
+                            arm.shoulder.rotation.set(0, 0, idx === 0 ? 0.2 : -0.2);
+                            arm.elbow.rotation.set(0, 0, 0);
+                        });
                     }
                 }
             }
