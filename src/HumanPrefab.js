@@ -32,20 +32,29 @@ export class HumanPrefab {
             this.group.add(bL, bR);
         }
 
-        // ARMS
-        const armL = new THREE.Mesh(new THREE.CylinderGeometry(5 * h, 4 * h, 65 * h, 6), mat);
-        const pL = new THREE.Group(); pL.add(armL);
-        pL.position.set(-22 * sw * h, 145 * h, 0); 
-        pL.rotation.z = 0.2; 
-        armL.position.y = -32.5 * h;
-        this.group.add(pL);
-        
-        const armR = new THREE.Mesh(new THREE.CylinderGeometry(5 * h, 4 * h, 65 * h, 6), mat);
-        const pR = new THREE.Group(); pR.add(armR);
-        pR.position.set(22 * sw * h, 145 * h, 0); 
-        pR.rotation.z = -0.2; 
-        armR.position.y = -32.5 * h;
-        this.group.add(pR);
+        // ARMS (Two-part: Shoulder and Elbow)
+        this.arms = [];
+        for (let i = 0; i < 2; i++) {
+            const isLeft = i === 0;
+            const shoulderPivot = new THREE.Group();
+            shoulderPivot.position.set(isLeft ? -22 * sw * h : 22 * sw * h, 145 * h, 0); 
+            shoulderPivot.rotation.z = isLeft ? 0.2 : -0.2;
+            this.group.add(shoulderPivot);
+
+            const upperArm = new THREE.Mesh(new THREE.CylinderGeometry(5 * h, 4 * h, 35 * h, 6), mat);
+            upperArm.position.y = -17.5 * h;
+            shoulderPivot.add(upperArm);
+
+            const elbowPivot = new THREE.Group();
+            elbowPivot.position.y = -35 * h;
+            shoulderPivot.add(elbowPivot);
+
+            const forearm = new THREE.Mesh(new THREE.CylinderGeometry(4 * h, 3 * h, 35 * h, 6), mat);
+            forearm.position.y = -17.5 * h;
+            elbowPivot.add(forearm);
+
+            this.arms.push({ shoulder: shoulderPivot, elbow: elbowPivot });
+        }
 
         // HEAD
         let headGeo;
@@ -63,54 +72,73 @@ export class HumanPrefab {
         const mouthMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
         const ft = traits.faceType || 0;
 
+        // Features placement Z (ensure it's outside the head even when scaled)
+        const frontZ = (traits.gender === 'female' ? 11 : 10.5) * h;
+
         // Default eyes
-        let eSize = 3, ePos = {x: 5, y: 4}, eScale = {x: 1, y: 1};
+        let eSize = 3, ePos = {x: 5, y: 4}, eScale = {x: 1, y: 1}, eRot = 0;
         // Default nose
         let nSize = {w: 4, h: 6, d: 4}, nPos = {y: -2};
         // Default mouth
         let mSize = {w: 8, h: 2}, mPos = {y: -8};
 
-        if (ft === 0) { // The Observer: Wide circular eyes, tiny nose, small mouth
-            eSize = 5; eScale = {x: 1, y: 1};
-            nSize = {w: 2, h: 2, d: 3}; nPos = {y: -2};
-            mSize = {w: 4, h: 2}; mPos = {y: -10};
-        } else if (ft === 1) { // The Grinner: Narrow eyes, pointed nose, wide smile
-            eSize = 4; eScale = {x: 1.2, y: 0.4}; ePos = {x: 6, y: 6};
+        if (ft === 0) { // The Observer: Huge circular eyes, dot nose, tiny dot mouth
+            eSize = 6; eScale = {x: 1, y: 1}; ePos = {x: 6, y: 4};
+            nSize = {w: 2, h: 2, d: 2}; nPos = {y: -2};
+            mSize = {w: 2, h: 2}; mPos = {y: -10};
+        } else if (ft === 1) { // The Grinner: Extreme narrow slanted eyes, pointed nose, very wide thin smile
+            eSize = 5; eScale = {x: 1.2, y: 0.2}; ePos = {x: 6, y: 6}; eRot = 0.4;
             nSize = {w: 3, h: 8, d: 5}; nPos = {y: -1};
-            mSize = {w: 14, h: 1.5}; mPos = {y: -9};
-        } else if (ft === 2) { // The Stoic: High square eyes, flat wide nose, tiny line mouth
+            mSize = {w: 16, h: 0.5}; mPos = {y: -9};
+        } else if (ft === 2) { // The Stoic: High square eyes, very wide flat nose, thin line mouth
             eSize = 3; ePos = {x: 5, y: 8};
-            nSize = {w: 8, h: 3, d: 3}; nPos = {y: 0};
-            mSize = {w: 6, h: 1}; mPos = {y: -8};
-        } else if (ft === 3) { // The Delicate: Low tiny eyes, long thin nose, open mouth
-            eSize = 2; ePos = {x: 4, y: 0};
-            nSize = {w: 2, h: 10, d: 4}; nPos = {y: -4};
-            mSize = {w: 6, h: 4}; mPos = {y: -12};
-        } else if (ft === 4) { // The Stern: Angry slanted eyes, blocky nose, frown
-            eSize = 4; eScale = {x: 1, y: 0.6}; ePos = {x: 5, y: 5};
-            nSize = {w: 6, h: 6, d: 5}; nPos = {y: -2};
-            mSize = {w: 10, h: 2}; mPos = {y: -10};
+            nSize = {w: 12, h: 2, d: 2}; nPos = {y: 0};
+            mSize = {w: 8, h: 0.5}; mPos = {y: -8};
+        } else if (ft === 3) { // The Delicate: Low tiny pin-prick eyes, long thin nose, small open mouth
+            eSize = 1.2; ePos = {x: 4, y: 0};
+            nSize = {w: 1.5, h: 10, d: 4}; nPos = {y: -4};
+            mSize = {w: 4, h: 3}; mPos = {y: -12};
+        } else if (ft === 4) { // The Stern: Angry down-slanted eyes, big blocky nose, wide frown
+            eSize = 4; eScale = {x: 1.1, y: 0.5}; ePos = {x: 5, y: 5}; eRot = -0.3;
+            nSize = {w: 7, h: 7, d: 5}; nPos = {y: -2};
+            mSize = {w: 12, h: 1.5}; mPos = {y: -11};
+            
+            // Add blocky eyebrows
+            const browGeo = new THREE.BoxGeometry(6 * h, 1.5 * h, 1 * h);
+            const browL = new THREE.Mesh(browGeo, eyeMat);
+            browL.position.set(-5 * h, head.position.y + 8 * h, frontZ);
+            browL.rotation.z = -0.2;
+            const browR = new THREE.Mesh(browGeo, eyeMat);
+            browR.position.set(5 * h, head.position.y + 8 * h, frontZ);
+            browR.rotation.z = 0.2;
+            this.group.add(browL, browR);
         }
 
+        // Apply scaling to features positions
+        const ex = ePos.x * h, ey = ePos.y * h;
+        const nw = nSize.w * h, nh = nSize.h * h, nd = nSize.d * h, ny = nPos.y * h;
+        const mw = mSize.w * h, mh = mSize.h * h, my = mPos.y * h;
+
         // Eyes
-        const eyeGeo = new THREE.BoxGeometry(eSize, eSize, 2);
+        const eyeGeo = new THREE.BoxGeometry(eSize * h, eSize * h, 2 * h);
         const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
-        eyeL.position.set(-ePos.x, head.position.y + ePos.y, 10);
+        eyeL.position.set(-ex, head.position.y + ey, frontZ);
         eyeL.scale.set(eScale.x, eScale.y, 1);
+        eyeL.rotation.z = eRot;
         const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
-        eyeR.position.set(ePos.x, head.position.y + ePos.y, 10);
+        eyeR.position.set(ex, head.position.y + ey, frontZ);
         eyeR.scale.set(eScale.x, eScale.y, 1);
-        if (ft === 4) { eyeL.rotation.z = 0.3; eyeR.rotation.z = -0.3; } // Angry slant
+        eyeR.rotation.z = -eRot;
         this.group.add(eyeL, eyeR);
 
         // Nose
-        const nose = new THREE.Mesh(new THREE.BoxGeometry(nSize.w, nSize.h, nSize.d), mat);
-        nose.position.set(0, head.position.y + nPos.y, 10 + nSize.d/2);
+        const nose = new THREE.Mesh(new THREE.BoxGeometry(nw, nh, nd), mat);
+        nose.position.set(0, head.position.y + ny, frontZ + nd/2 - (1*h));
         this.group.add(nose);
 
         // Mouth
-        const mouth = new THREE.Mesh(new THREE.BoxGeometry(mSize.w, mSize.h, 2), mouthMat);
-        mouth.position.set(0, head.position.y + mPos.y, 10);
+        const mouth = new THREE.Mesh(new THREE.BoxGeometry(mw, mh, 2 * h), mouthMat);
+        mouth.position.set(0, head.position.y + my, frontZ);
         this.group.add(mouth);
 
         // HAIR
@@ -129,7 +157,7 @@ export class HumanPrefab {
 
         this.heartHeight = 145 * h;
         this.group.userData.legs = [legL, legR];
-        this.group.userData.arms = [pL, pR];
+        this.group.userData.arms = this.arms;
         this.group.userData.legPhase = 0;
 
         // HIT SPHERE attached to group for reliable access
