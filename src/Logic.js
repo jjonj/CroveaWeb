@@ -15,6 +15,7 @@ export function createLogic(scene, camera, glowTexture) {
     // The current state of available trait options
     const traitPool = {
         skinColor: [...SKINS],
+        hairColor: [0x000000, 0x111111, 0x1a1a1a, 0x221100, 0x222222], // Shades of black/dark brown
         height: [0.8, 0.9, 1.0, 1.1, 1.2],
         hairStyle: ['long', 'short'],
         roundFace: [true, false],
@@ -26,6 +27,7 @@ export function createLogic(scene, camera, glowTexture) {
     // The "Result" traits that will persist
     let survivorTraits = {
         skinColor: 0xffdbac,
+        hairColor: 0x000000,
         height: 1.0,
         hairStyle: 'long',
         roundFace: false,
@@ -33,22 +35,27 @@ export function createLogic(scene, camera, glowTexture) {
         broadShoulders: false
     };
 
+    const formatTraitValue = (trait, val) => {
+        if (trait === 'skinColor' || trait === 'hairColor') {
+            const r = ((val >> 16) & 255) / 255;
+            const g = ((val >> 8) & 255) / 255;
+            const b = (val & 255) / 255;
+            return `RGB(${r.toFixed(2)}, ${g.toFixed(2)}, ${b.toFixed(2)})`;
+        }
+        return val;
+    };
+
+    const formatTraitObject = (obj) => {
+        const formatted = {};
+        for (let k in obj) formatted[k] = formatTraitValue(k, obj[k]);
+        return formatted;
+    };
+
     function spawn() {
         dots.forEach(d => scene.remove(d)); humans.forEach(h => scene.remove(h));
         dots.length = 0; humans.length = 0;
         const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).setY(0).normalize();
         
-        const groupCenters = {}; 
-
-        let count = 0;
-        if (currentPhase === PHASES.VOID_PAIR) {
-            count = 2;
-        } else if (currentPhase === PHASES.CAVE_GROUP) {
-            // Check if we are at the final choice (only 2 humans)
-            const unlockedTraits = Object.keys(traitPool).filter(k => traitPool[k].length > 1);
-            count = (unlockedTraits.length === 0 || (unlockedTraits.length === 1 && traitPool[unlockedTraits[0]].length === 2)) ? 2 : 4;
-        }
-
         const clusterDist = (currentPhase === PHASES.VOID_PAIR) ? 1200 : 800;
         const clusterCenter = camera.position.clone().add(forward.clone().multiplyScalar(clusterDist));
         groupCenter.copy(clusterCenter).setY(0);
@@ -69,8 +76,8 @@ export function createLogic(scene, camera, glowTexture) {
                 roundTraitValues.right[trait] = values[1] || values[0];
             });
 
-            console.log("Left Pair Values:", roundTraitValues.left);
-            console.log("Right Pair Values:", roundTraitValues.right);
+            console.log("Left Pair Values:", formatTraitObject(roundTraitValues.left));
+            console.log("Right Pair Values:", formatTraitObject(roundTraitValues.right));
         }
 
         for(let i=0; i<count; i++) {
@@ -210,13 +217,19 @@ export function createLogic(scene, camera, glowTexture) {
             // Remove the traits of the melted human from the pool
             activeSelectionTraits.forEach(t => {
                 const valToRemove = traits[t];
-                console.log(`Eliminating ${t}: ${valToRemove}`);
+                console.log(`Eliminating ${t}: ${formatTraitValue(t, valToRemove)}`);
                 traitPool[t] = traitPool[t].filter(v => v !== valToRemove);
             });
 
             // Check if we are done with Phase 1
             const unlocked = Object.keys(traitPool).filter(k => traitPool[k].length > 1);
-            console.log("Remaining Trait Pool:", traitPool);
+            
+            const formattedPool = {};
+            for (let k in traitPool) {
+                formattedPool[k] = traitPool[k].map(v => formatTraitValue(k, v));
+            }
+            console.log("Remaining Trait Pool:", formattedPool);
+
             if (unlocked.length === 0) {
                 // Finalize survivor traits from whatever is left in the pool
                 Object.keys(traitPool).forEach(t => {

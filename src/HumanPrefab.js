@@ -38,7 +38,15 @@ export class HumanPrefab {
         const armR = new THREE.Mesh(new THREE.CylinderGeometry(5 * h, 4 * h, 65 * h, 6), mat);
         armR.position.set(22 * sw * h, 145 * h, 0); armR.rotation.z = -0.2; this.group.add(armR);
 
-        const head = new THREE.Mesh(new THREE.BoxGeometry(20 * (traits.roundFace ? 1.2 : 1.0), 24, 20), mat);
+        // HEAD
+        let headGeo;
+        if (traits.roundFace) {
+            headGeo = new THREE.SphereGeometry(15 * h, 16, 12);
+            headGeo.scale(0.8, 0.9, 0.7); // Slightly flattened sphere
+        } else {
+            headGeo = new THREE.BoxGeometry(20 * h, 24 * h, 20 * h);
+        }
+        const head = new THREE.Mesh(headGeo, mat);
         head.position.y = 165 * h + 12 * h; this.group.add(head);
 
         // UNIQUE FACIAL FEATURES
@@ -63,8 +71,8 @@ export class HumanPrefab {
         mouth.position.set(0, head.position.y - 8, 10);
         this.group.add(mouth);
 
-        // HAIR (Placeholders)
-        const hairMat = new THREE.MeshStandardMaterial({ color: 0x2b1d0e });
+        // HAIR
+        const hairMat = new THREE.MeshStandardMaterial({ color: traits.hairColor || 0x111111 });
         if (traits.hairStyle === 'long') {
             const hairGeo = new THREE.BoxGeometry(22, 60, 22);
             const hair = new THREE.Mesh(hairGeo, hairMat);
