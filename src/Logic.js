@@ -70,9 +70,26 @@ export function createLogic(scene, camera, glowTexture) {
         dots.length = 0; humans.length = 0;
         const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).setY(0).normalize();
         
-        let count = (currentPhase === PHASES.VOID_PAIR) ? 2 : 4;
-        const clusterDist = (currentPhase === PHASES.VOID_PAIR) ? 1200 : 800;
-        const clusterCenter = camera.position.clone().add(forward.clone().multiplyScalar(clusterDist));
+        let clusterDist = (currentPhase === PHASES.VOID_PAIR) ? 1200 : 2500;
+        let clusterCenter = camera.position.clone().add(forward.clone().multiplyScalar(clusterDist));
+        
+        // Ensure clusterCenter is within cave walls if in CAVE_GROUP
+        if (currentPhase === PHASES.CAVE_GROUP) {
+            // Find the cave center (stored in wallGroup.userData.center)
+            let caveCenter = new THREE.Vector3(0, 0, 0);
+            scene.traverse(obj => {
+                if (obj.userData && obj.userData.center) caveCenter = obj.userData.center;
+            });
+
+            const toCluster = clusterCenter.clone().sub(caveCenter).setY(0);
+            const caveRadius = 5000;
+            const spawnBuffer = 500; // Keep 500 units away from walls
+            if (toCluster.length() > caveRadius - spawnBuffer) {
+                toCluster.setLength(caveRadius - spawnBuffer);
+                clusterCenter.copy(caveCenter).add(toCluster);
+            }
+        }
+
         groupCenter.copy(clusterCenter).setY(0);
 
         // Prepare traits for the round if in CAVE_GROUP
