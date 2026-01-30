@@ -297,16 +297,33 @@ function animate() {
                 let moveVec = new THREE.Vector3();
                 
                 if (!logic.debugActive && effectiveDist < 12000) {
-                    // Flee from player together
-                    const fleeDir = logic.groupCenter.clone().sub(camera.position).setY(0).normalize();
-                    moveVec.add(fleeDir.multiplyScalar(250)); 
-                    
-                    // Apply group movement
-                    logic.groupCenter.add(moveVec.clone().multiplyScalar(delta));
+                    if (logic.currentPhase === PHASES.CAVE_GROUP) {
+                        // CAVE_GROUP: Fixed formation relative to groupCenter
+                        const fleeDir = logic.groupCenter.clone().sub(camera.position).setY(0).normalize();
+                        moveVec.add(fleeDir.multiplyScalar(250)); 
+                        
+                        logic.groupCenter.add(moveVec.clone().multiplyScalar(delta));
 
-                    // Individual human lerps to their formation spot
-                    const targetPos = logic.groupCenter.clone().add(h.userData.formationOffset);
-                    h.position.lerp(targetPos, delta * 5.0);
+                        const targetPos = logic.groupCenter.clone().add(h.userData.formationOffset);
+                        h.position.lerp(targetPos, delta * 5.0);
+                    } else {
+                        // VOID_PAIR (Scene 1): Individual flocking/separation
+                        const fleeDir = h.position.clone().sub(camera.position).setY(0).normalize();
+                        moveVec.add(fleeDir.multiplyScalar(250)); 
+
+                        logic.humans.forEach(other => {
+                            if (other === h) return;
+                            const toOther = other.position.clone().sub(h.position).setY(0);
+                            const distToOther = toOther.length();
+                            
+                            // Separation: Avoid overlapping
+                            if (distToOther < 200) {
+                                moveVec.add(toOther.normalize().multiplyScalar(-450));
+                            }
+                        });
+
+                        h.position.add(moveVec.multiplyScalar(delta));
+                    }
                     
                     // Leg animation while fleeing
                     h.userData.legPhase = (h.userData.legPhase || 0) + delta * 15;

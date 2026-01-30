@@ -51,7 +51,7 @@ export function createLogic(scene, camera, glowTexture) {
 
         const clusterDist = (currentPhase === PHASES.VOID_PAIR) ? 1200 : 800;
         const clusterCenter = camera.position.clone().add(forward.clone().multiplyScalar(clusterDist));
-        groupCenter.copy(clusterCenter);
+        groupCenter.copy(clusterCenter).setY(0);
 
         // Prepare traits for the round if in CAVE_GROUP
         let roundTraitValues = { left: {}, right: {} };
