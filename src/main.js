@@ -478,5 +478,36 @@ function animate() {
     renderer.render(scene, camera);
 }
 
-setupEnvironment(false); logic.spawn(); animate();
+async function startIntro() {
+    const narrative = document.getElementById('narrative');
+    const fade = document.getElementById('screen-fade');
+    const overlay = document.getElementById('ui-overlay');
+    
+    overlay.style.opacity = '1';
+    narrative.style.opacity = '0';
+    await new Promise(r => setTimeout(r, 1000));
+    
+    // Line 1
+    narrative.innerText = "Your body.. your face.. is not by design";
+    narrative.style.opacity = '1';
+    await new Promise(r => setTimeout(r, 4000));
+    narrative.style.opacity = '0';
+    await new Promise(r => setTimeout(r, 2000));
+    
+    // Line 2
+    narrative.innerText = "it is merely what survived...";
+    narrative.style.opacity = '1';
+    await new Promise(r => setTimeout(r, 4000));
+    narrative.style.opacity = '0';
+    await new Promise(r => setTimeout(r, 2000));
+    
+    // Fade into game
+    fade.style.opacity = '0';
+    setupEnvironment(false); 
+    logic.spawn(); 
+}
+
+animate();
+startIntro();
+
 window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });

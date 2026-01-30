@@ -21,11 +21,6 @@ export function createLogic(scene, camera, glowTexture) {
         broadShoulders: false
     };
 
-    function updateNarrative(text) {
-        const el = document.getElementById('narrative');
-        if (el) el.innerText = text;
-    }
-
     function spawn() {
         dots.forEach(d => scene.remove(d)); humans.forEach(h => scene.remove(h));
         dots.length = 0; humans.length = 0;
@@ -37,10 +32,8 @@ export function createLogic(scene, camera, glowTexture) {
         let count = 0;
         if (currentPhase === PHASES.VOID_PAIR) {
             count = 2;
-            updateNarrative("Follow the faint red pulsing...");
         } else if (currentPhase === PHASES.CAVE_GROUP) {
             count = 5;
-            updateNarrative("Consume the traits you wish to fade from this world...");
         }
 
         // Cluster Center
@@ -128,7 +121,11 @@ export function createLogic(scene, camera, glowTexture) {
         else if (currentPhase === PHASES.CAVE_GROUP) currentPhase = PHASES.DAWN;
 
         if (currentPhase === PHASES.DAWN) {
-            updateNarrative("The survivor stands alone. Dawn breaks.");
+            // Clear everything from the previous phase
+            dots.forEach(d => scene.remove(d)); 
+            humans.forEach(h => scene.remove(h));
+            dots.length = 0; humans.length = 0;
+
             setupEnv(false, true); 
             console.log("SURVIVOR TRAITS:", survivorTraits);
         } else {
@@ -166,7 +163,6 @@ export function createLogic(scene, camera, glowTexture) {
         dots.length = 0; humans.length = 0;
         const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).setY(0).normalize();
         
-        updateNarrative("DEBUG MODE: 10 Random Humans Generated (Fleeing Disabled)");
         const clusterDist = 1000;
         const clusterCenter = camera.position.clone().add(forward.clone().multiplyScalar(clusterDist));
 
