@@ -60,9 +60,13 @@ const raycaster = new THREE.Raycaster();
 // Audio Setup
 const meltSound = new Audio('melteffect.wav');
 meltSound.loop = true;
+meltSound.volume = 0.4;
 const heartbeatSound = new Audio('heartbeat.mp3');
 heartbeatSound.loop = true;
 heartbeatSound.volume = 0;
+const bgMusic = new Audio('backgroundmusic.mp3');
+bgMusic.loop = true;
+bgMusic.volume = 0.3;
 
 let localPlayerHuman = null;
 let reflectionHuman = null;
@@ -74,9 +78,10 @@ function animate() {
     const delta = Math.min(clock.getDelta(), 0.1);
     const time = performance.now() * 0.001;
 
-    // Start heartbeat on first interaction
+    // Start audio on first interaction
     if (controls.isLocked && !soundStarted) {
         heartbeatSound.play().catch(() => {});
+        bgMusic.play().catch(() => {});
         soundStarted = true;
     }
 
@@ -468,13 +473,18 @@ function animate() {
         // Volume scales with proximity and pulses with the visual rhythm
         const distFactor = Math.max(0, 1 - (nearestDist / 2500));
         // Modulate volume by pulseFactor to create "thump-thump" effect
-        heartbeatSound.volume = distFactor * (0.1 + nearestPulseFactor * 0.9) * 0.6;
+        heartbeatSound.volume = distFactor * (0.1 + nearestPulseFactor * 0.9) * 1.0; // Increased from 0.6
         
         // Sync playback rate to pulse speed
         // Baseline pulseSpeed is 1.5 (slow) up to 20.0 (fast)
         heartbeatSound.playbackRate = 0.7 + (nearestPulseSpeed - 1.5) * (1.8 / 18.5);
     } else {
         heartbeatSound.volume = 0;
+    }
+
+    // Fade out BG music in DAWN phase
+    if (logic.currentPhase === PHASES.DAWN && bgMusic.volume > 0) {
+        bgMusic.volume = Math.max(0, bgMusic.volume - delta * 0.1);
     }
 
     if (activeGazeDot && !playerMoving && logic.currentPhase !== PHASES.DAWN) {
