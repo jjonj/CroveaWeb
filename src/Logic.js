@@ -69,6 +69,14 @@ export function createLogic(scene, camera, glowTexture) {
         return formatted;
     };
 
+    function shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+
     function spawn() {
         dots.forEach(d => scene.remove(d)); humans.forEach(h => scene.remove(h));
         dots.length = 0; humans.length = 0;
@@ -90,7 +98,6 @@ export function createLogic(scene, camera, glowTexture) {
         if (currentPhase === PHASES.VOID_PAIR) {
             count = 2;
         } else if (currentPhase === PHASES.CAVE_GROUP) {
-            // Ensure final round is a 1v1
             count = (unlocked.length === 1) ? 2 : 4;
         }
 
@@ -102,29 +109,24 @@ export function createLogic(scene, camera, glowTexture) {
             scene.traverse(obj => {
                 if (obj.userData && obj.userData.center) caveCenter = obj.userData.center;
             });
-
+            const toCluster = clusterCenter.clone().sub(caveCenter).setY(0);
             const caveRadius = 5000;
             const spawnBuffer = 600;
             const minPlayerDist = 1500;
 
-            // 1. Initial attempt: Forward from player
-            let toCluster = clusterCenter.clone().sub(caveCenter).setY(0);
-            if (toCluster.length() > caveRadius - spawnBuffer) {
-                toCluster.setLength(caveRadius - spawnBuffer);
-                clusterCenter.copy(caveCenter).add(toCluster);
+            let toClust = clusterCenter.clone().sub(caveCenter).setY(0);
+            if (toClust.length() > caveRadius - spawnBuffer) {
+                toClust.setLength(caveRadius - spawnBuffer);
+                clusterCenter.copy(caveCenter).add(toClust);
             }
 
-            // 2. Check if too close to player (usually happens when looking at a wall)
             if (clusterCenter.distanceTo(camera.position) < minPlayerDist) {
-                // Try spawning them towards the cave center instead
                 const dirToCenter = caveCenter.clone().sub(camera.position).setY(0).normalize();
                 clusterCenter.copy(camera.position).add(dirToCenter.multiplyScalar(clusterDist));
-                
-                // Final clamp to wall just in case
-                toCluster = clusterCenter.clone().sub(caveCenter).setY(0);
-                if (toCluster.length() > caveRadius - spawnBuffer) {
-                    toCluster.setLength(caveRadius - spawnBuffer);
-                    clusterCenter.copy(caveCenter).add(toCluster);
+                toClust = clusterCenter.clone().sub(caveCenter).setY(0);
+                if (toClust.length() > caveRadius - spawnBuffer) {
+                    toClust.setLength(caveRadius - spawnBuffer);
+                    clusterCenter.copy(caveCenter).add(toClust);
                 }
             }
         }
@@ -133,19 +135,21 @@ export function createLogic(scene, camera, glowTexture) {
 
         let roundTraitValues = { left: {}, right: {} };
         if (currentPhase === PHASES.CAVE_GROUP) {
-            // Pick traits to vary
+            // Prioritize traits with MOST options
+            const sortedByCount = [...unlocked].sort((a, b) => traitPool[b].length - traitPool[a].length);
+            
             let maxToVary = (count === 4) ? Math.min(unlocked.length - 1, 3) : 1;
             if (maxToVary < 1) maxToVary = 1;
 
-            activeSelectionTraits = unlocked.sort(() => Math.random() - 0.5).slice(0, maxToVary);
+            activeSelectionTraits = sortedByCount.slice(0, maxToVary);
             
             console.log("%c--- NEW SELECTION ROUND ---", "color: #00ff00; font-weight: bold;");
             console.log("Active Selection Traits:", activeSelectionTraits);
 
             activeSelectionTraits.forEach(trait => {
-                const values = [...traitPool[trait]].sort(() => Math.random() - 0.5);
+                const values = shuffle([...traitPool[trait]]);
                 roundTraitValues.left[trait] = values[0];
-                roundTraitValues.right[trait] = values[1] || values[0];
+                roundTraitValues.right[trait] = values[1]; // Guaranteed different since unlocked length > 1
             });
 
             console.log("Left Pair Values:", formatTraitObject(roundTraitValues.left));
