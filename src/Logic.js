@@ -82,11 +82,6 @@ export function createLogic(scene, camera, glowTexture) {
         dots.length = 0; humans.length = 0;
 
         if (currentPhase === PHASES.FOREST_SURVIVOR) {
-            const survivor = new HumanPrefab(survivorTraits);
-            survivor.group.position.set(0, 5, 0); 
-            survivor.group.rotation.x = Math.PI / 2; 
-            scene.add(survivor.group);
-            humans.push(survivor.group);
             return;
         }
 
@@ -332,9 +327,9 @@ export function createLogic(scene, camera, glowTexture) {
         await new Promise(r => setTimeout(r, 1000));
         
         if (currentPhase === PHASES.VOID_PAIR) currentPhase = PHASES.CAVE_GROUP;
-        else if (currentPhase === PHASES.CAVE_GROUP) currentPhase = PHASES.DAWN; 
+        else if (currentPhase === PHASES.CAVE_GROUP) currentPhase = PHASES.FOREST_SURVIVOR;
 
-        if (currentPhase === PHASES.DAWN) {
+        if (currentPhase === PHASES.FOREST_SURVIVOR || currentPhase === PHASES.DAWN) {
             dots.forEach(d => scene.remove(d)); 
             humans.forEach(h => scene.remove(h));
             dots.length = 0; humans.length = 0;
@@ -342,7 +337,10 @@ export function createLogic(scene, camera, glowTexture) {
             // Clear potential global references in main.js if they existed
             // (Handled by checking their existence in animate loop)
 
-            setupEnv(false, true); 
+            const isDawn = currentPhase === PHASES.DAWN;
+            const isForest = currentPhase === PHASES.FOREST_SURVIVOR;
+            setupEnv(false, isDawn, isForest); 
+            spawn();
             console.log("FINAL SURVIVOR TRAITS:", survivorTraits);
         } else {
             setupEnv(currentPhase !== PHASES.VOID_PAIR, false); spawn();
