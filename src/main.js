@@ -69,7 +69,7 @@ heartbeatSound.volume = 0;
 const bgMusic = new Audio('backgroundmusic.mp3');
 bgMusic.loop = true;
 bgMusic.volume = 0.3;
-const forestAmbient = new Audio('forestnightambient.wav');
+const forestAmbient = new Audio('forestnightambient.mp3');
 forestAmbient.loop = true;
 forestAmbient.volume = 0;
 
