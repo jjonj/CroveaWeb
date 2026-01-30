@@ -478,29 +478,27 @@ async function startIntro() {
 
     const addSegment = async (en, jp, duration = 2000) => {
         if (introFinished) return;
+        
+        if (!narrative.querySelector('.en-line')) {
+            narrative.innerHTML = '<div class="en-line"></div><div class="subtitle" style="opacity:0; transition: opacity 1.5s;"></div>';
+        }
+
         const segment = document.createElement('span');
         segment.style.opacity = '0';
         segment.style.transition = 'opacity 1.5s';
         segment.innerHTML = highlight(en);
         
-        // Add space if not first
-        if (narrative.querySelector('.en-line') && narrative.querySelector('.en-line').innerHTML !== '') {
-            // narrative.querySelector('.en-line').innerHTML += ' ';
-        }
-
-        if (!narrative.querySelector('.en-line')) {
-            narrative.innerHTML = '<div class="en-line"></div><div class="subtitle"></div>';
-        }
-
         narrative.querySelector('.en-line').appendChild(segment);
         
-        // Handle JP build up
+        // Handle JP build up with fade
         const jpLine = narrative.querySelector('.subtitle');
         jpLine.innerHTML = highlightJP(jp);
-        jpLine.style.opacity = '1';
-
-        // Trigger fade in
-        setTimeout(() => { segment.style.opacity = '1'; }, 50);
+        
+        // Trigger fade in for both
+        setTimeout(() => { 
+            segment.style.opacity = '1'; 
+            jpLine.style.opacity = '1';
+        }, 50);
         
         let elapsed = 0;
         while (elapsed < duration && !introFinished) {

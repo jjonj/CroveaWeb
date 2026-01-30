@@ -3,7 +3,7 @@ body { margin: 0; overflow: hidden; background: #000; font-family: 'Cinzel', ser
 #ui-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; padding: 40px; box-sizing: border-box; z-index: 110; background: radial-gradient(circle, transparent 40%, rgba(0,0,0,1) 100%); transition: opacity 2s; display: flex; align-items: center; justify-content: center; }
 #narrative { text-align: center; font-size: 24px; letter-spacing: 4px; text-transform: uppercase; color: rgba(255, 255, 255, 0.5); transition: opacity 1s; line-height: 1.6; }
 .highlight { color: #ff0000; text-shadow: 0 0 10px #ff0000; }
-.subtitle { font-size: 16px; letter-spacing: 2px; color: rgba(255, 255, 255, 0.3); text-transform: none; display: block; margin-top: 10px; }
+.subtitle { font-size: 13px; letter-spacing: 2px; color: rgba(255, 255, 255, 0.3); text-transform: none; display: block; margin-top: 10px; }
 #crosshair { position: absolute; top: 50%; left: 50%; width: 12px; height: 12px; border: 1px solid rgba(255, 0, 0, 0.8); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
 #instructions { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); font-size: 12px; letter-spacing: 2px; opacity: 0.5; text-align: center; }
 #screen-fade { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: black; pointer-events: none; opacity: 1; z-index: 100; transition: opacity 2s; }
