@@ -69,6 +69,9 @@ heartbeatSound.volume = 0;
 const bgMusic = new Audio('backgroundmusic.mp3');
 bgMusic.loop = true;
 bgMusic.volume = 0.3;
+const forestAmbient = new Audio('forestnightambient.wav');
+forestAmbient.loop = true;
+forestAmbient.volume = 0;
 
 let localPlayerHuman = null;
 let reflectionHuman = null;
@@ -85,70 +88,92 @@ function animate() {
     if (controls.isLocked && !soundStarted) {
         heartbeatSound.play().catch(() => {});
         bgMusic.play().catch(() => {});
+        forestAmbient.play().catch(() => {});
         soundStarted = true;
     }
 
     // Handle local player human for final scene reflection
-    if (logic.currentPhase === PHASES.DAWN) {
+    if (logic.currentPhase === PHASES.DAWN || logic.currentPhase === PHASES.FOREST_SURVIVOR) {
         if (!localPlayerHuman) {
             localPlayerHuman = new HumanPrefab(logic.survivorTraits);
             scene.add(localPlayerHuman.group);
             
-            // Initial position for the survivor (center of scene)
-            localPlayerHuman.group.position.set(camera.position.x, 0, camera.position.z);
-            localPlayerHuman.group.rotation.y = Math.PI; // Face the sun (assuming sun is at -Z)
+            if (logic.currentPhase === PHASES.FOREST_SURVIVOR) {
+                // Laying next to campfire at (200, 0, 0)
+                localPlayerHuman.group.position.set(200, 5, 100);
+                localPlayerHuman.group.rotation.x = -Math.PI / 2;
+                localPlayerHuman.group.rotation.z = Math.PI / 4;
 
-            // THIRD PERSON CAMERA SETUP
-            // Move camera behind and up
-            const offset = new THREE.Vector3(0, 150, 400); // Behind and up
-            camera.position.copy(localPlayerHuman.group.position).add(offset);
-            camera.lookAt(localPlayerHuman.group.position.x, localPlayerHuman.group.position.y + 100, localPlayerHuman.group.position.z - 1000);
+                // Position camera for forest scene
+                const camOffset = new THREE.Vector3(0, 80, 300);
+                camera.position.copy(localPlayerHuman.group.position).add(camOffset);
+                camera.lookAt(localPlayerHuman.group.position);
+            } else {
+                // Initial position for the survivor (center of scene)
+                localPlayerHuman.group.position.set(camera.position.x, 0, camera.position.z);
+                localPlayerHuman.group.rotation.y = Math.PI; // Face the sun (assuming sun is at -Z)
 
-            // Create reflection "ghost"
-            reflectionHuman = new HumanPrefab(logic.survivorTraits);
-            reflectionHuman.group.scale.y *= -1; // Invert vertically
-            scene.add(reflectionHuman.group);
-            
-            // Dim the reflection
-            reflectionHuman.group.traverse(child => {
-                if (child.material) {
-                    child.material = child.material.clone();
-                    child.material.transparent = true;
-                    child.material.opacity = 0.4;
-                }
-            });
+                // THIRD PERSON CAMERA SETUP
+                // Move camera behind and up
+                const offset = new THREE.Vector3(0, 150, 400); // Behind and up
+                camera.position.copy(localPlayerHuman.group.position).add(offset);
+                camera.lookAt(localPlayerHuman.group.position.x, localPlayerHuman.group.position.y + 100, localPlayerHuman.group.position.z - 1000);
+
+                // Create reflection "ghost"
+                reflectionHuman = new HumanPrefab(logic.survivorTraits);
+                reflectionHuman.group.scale.y *= -1; // Invert vertically
+                scene.add(reflectionHuman.group);
+                
+                // Dim the reflection
+                reflectionHuman.group.traverse(child => {
+                    if (child.material) {
+                        child.material = child.material.clone();
+                        child.material.transparent = true;
+                        child.material.opacity = 0.4;
+                    }
+                });
+            }
         }
         
-        // No longer locking player to camera position in Dawn phase (Third Person now)
+        // Dynamic Sunrise Logic (Only in DAWN phase)
+        if (logic.currentPhase === PHASES.DAWN) {
+            // Position reflection
+            if (sunriseState.pool && reflectionHuman) {
+                reflectionHuman.group.position.copy(localPlayerHuman.group.position);
+                reflectionHuman.group.position.y = -2; // Slightly below ground/pool
+                reflectionHuman.group.rotation.y = localPlayerHuman.group.rotation.y;
+            }
 
-        // Position reflection
-        if (sunriseState.pool) {
-            reflectionHuman.group.position.copy(localPlayerHuman.group.position);
-            reflectionHuman.group.position.y = -2; // Slightly below ground/pool
-            reflectionHuman.group.rotation.y = localPlayerHuman.group.rotation.y;
+            sunriseProgress = Math.min(1.0, sunriseProgress + delta * 0.02); // 50 seconds to full sunrise
+            
+            if (sunriseState.sunDisk) {
+                // Move sun up
+                sunriseState.sunDisk.position.y = -500 + (sunriseProgress * 2000);
+                // Change color from red to yellow-white
+                const sunColor = new THREE.Color(0xff0000).lerp(new THREE.Color(0xffffcc), sunriseProgress);
+                sunriseState.sunDisk.material.color.copy(sunColor);
+                
+                // Lighting adjustments
+                sunriseState.sunLight.intensity = 0.2 + (sunriseProgress * 1.5);
+                sunriseState.sunLight.color.copy(sunColor);
+                sunriseState.hemiLight.intensity = 0.2 + (sunriseProgress * 0.8);
+                
+                // Fog adjustments
+                const fogColor = new THREE.Color(0x1a0505).lerp(new THREE.Color(0x87ceeb), sunriseProgress);
+                scene.background.copy(fogColor);
+                scene.fog.color.copy(fogColor);
+                scene.fog.density = 0.0002 * (1.0 - sunriseProgress * 0.5);
+            }
         }
+    }
 
-        // Dynamic Sunrise Logic
-        sunriseProgress = Math.min(1.0, sunriseProgress + delta * 0.02); // 50 seconds to full sunrise
-        
-        if (sunriseState.sunDisk) {
-            // Move sun up
-            sunriseState.sunDisk.position.y = -500 + (sunriseProgress * 2000);
-            // Change color from red to yellow-white
-            const sunColor = new THREE.Color(0xff0000).lerp(new THREE.Color(0xffffcc), sunriseProgress);
-            sunriseState.sunDisk.material.color.copy(sunColor);
-            
-            // Lighting adjustments
-            sunriseState.sunLight.intensity = 0.2 + (sunriseProgress * 1.5);
-            sunriseState.sunLight.color.copy(sunColor);
-            sunriseState.hemiLight.intensity = 0.2 + (sunriseProgress * 0.8);
-            
-            // Fog adjustments
-            const fogColor = new THREE.Color(0x1a0505).lerp(new THREE.Color(0x87ceeb), sunriseProgress);
-            scene.background.copy(fogColor);
-            scene.fog.color.copy(fogColor);
-            scene.fog.density = 0.0002 * (1.0 - sunriseProgress * 0.5);
-        }
+    // Audio transitions
+    if (logic.currentPhase === PHASES.FOREST_SURVIVOR) {
+        if (bgMusic.volume > 0) bgMusic.volume = Math.max(0, bgMusic.volume - delta * 0.2);
+        if (forestAmbient.volume < 0.6) forestAmbient.volume = Math.min(0.6, forestAmbient.volume + delta * 0.2);
+    } else if (logic.currentPhase === PHASES.DAWN) {
+        if (bgMusic.volume > 0) bgMusic.volume = Math.max(0, bgMusic.volume - delta * 0.1);
+        if (forestAmbient.volume > 0) forestAmbient.volume = Math.max(0, forestAmbient.volume - delta * 0.1);
     }
 
     const playerMoving = moveF || moveB || moveL || moveR;
@@ -599,17 +624,6 @@ async function startIntro() {
         ]);
     }
 
-    if (introFinished) {
-        narrative.style.opacity = '0';
-        narrative.innerHTML = '';
-    }
-
-    introFinished = true;
-    fade.style.opacity = '0';
-    setupEnvironment(false); 
-    logic.spawn(); 
-}
-    
     if (introFinished) {
         narrative.style.opacity = '0';
         narrative.innerHTML = '';

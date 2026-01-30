@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { HumanPrefab } from './HumanPrefab.js';
 
-export const PHASES = { VOID_PAIR: 0, CAVE_GROUP: 1, FINAL_FAMILY: 2, DAWN: 3, DEBUG: 4 };
+export const PHASES = { VOID_PAIR: 0, CAVE_GROUP: 1, FINAL_FAMILY: 2, DAWN: 3, DEBUG: 4, FOREST_SURVIVOR: 5 };
 const SKINS = [0x4b3621, 0x8d5524, 0xc68642, 0xf1c27d, 0xffdbac];
 
 export function createLogic(scene, camera, glowTexture) {
@@ -68,6 +68,17 @@ export function createLogic(scene, camera, glowTexture) {
     function spawn() {
         dots.forEach(d => scene.remove(d)); humans.forEach(h => scene.remove(h));
         dots.length = 0; humans.length = 0;
+
+        if (currentPhase === PHASES.FOREST_SURVIVOR) {
+            const survivor = new HumanPrefab(survivorTraits);
+            survivor.group.position.set(0, 5, 0); // Laying on ground (adjusted by HumanPrefab structure likely)
+            survivor.group.rotation.x = Math.PI / 2; // Laying down
+            scene.add(survivor.group);
+            humans.push(survivor.group);
+            // No gaze dot for survivor phase
+            return;
+        }
+
         const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).setY(0).normalize();
         
         let count = 0;
@@ -226,14 +237,18 @@ export function createLogic(scene, camera, glowTexture) {
         await new Promise(r => setTimeout(r, 1000));
         
         if (currentPhase === PHASES.VOID_PAIR) currentPhase = PHASES.CAVE_GROUP;
-        else if (currentPhase === PHASES.CAVE_GROUP) currentPhase = PHASES.DAWN;
+        else if (currentPhase === PHASES.CAVE_GROUP) currentPhase = PHASES.FOREST_SURVIVOR;
 
-        if (currentPhase === PHASES.DAWN) {
+        if (currentPhase === PHASES.FOREST_SURVIVOR || currentPhase === PHASES.DAWN) {
             dots.forEach(d => scene.remove(d)); 
             humans.forEach(h => scene.remove(h));
             dots.length = 0; humans.length = 0;
 
-            setupEnv(false, true); 
+            const isDawn = currentPhase === PHASES.DAWN;
+            const isForest = currentPhase === PHASES.FOREST_SURVIVOR;
+            
+            setupEnv(false, isDawn, isForest); 
+            spawn();
             console.log("FINAL SURVIVOR TRAITS:", survivorTraits);
         } else {
             setupEnv(currentPhase !== PHASES.VOID_PAIR, false); spawn();
