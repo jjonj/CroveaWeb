@@ -320,9 +320,20 @@ function animate() {
                         if (logic.currentPhase === PHASES.VOID_PAIR) {
                             logic.dots.forEach(d => { if(d !== dot) d.userData.human.userData.isEscaping = true; });
                         }
-                        // Phase 1: All other humans escape when melting starts
+                        // Phase 1: Partner melts too, others escape
                         else if (logic.currentPhase === PHASES.CAVE_GROUP) {
-                            logic.dots.forEach(d => { if(d !== dot) d.userData.human.userData.isEscaping = true; });
+                            if (h.userData.partner) {
+                                h.userData.partner.userData.isMelting = true;
+                                // Find partner's dot to hide it
+                                const partnerDot = logic.dots.find(d => d.userData.human === h.userData.partner);
+                                if (partnerDot) partnerDot.userData.gazeTime = 3.0;
+                            }
+                            logic.dots.forEach(d => { 
+                                const otherH = d.userData.human;
+                                if(otherH !== h && otherH !== h.userData.partner) {
+                                    otherH.userData.isEscaping = true; 
+                                }
+                            });
                         }
                     }
                 } else { dot.userData.gazeTime = 0; }
@@ -416,29 +427,39 @@ function animate() {
                 const hIdx = logic.humans.indexOf(h);
                 if (hIdx !== -1) logic.humans.splice(hIdx, 1);
                 
-                logic.setMovementDisabled(false);
-                logic.setGlobalMeltHuman(null);
+                // If both in the pair are gone, check for next steps
+                const pairStillMelted = logic.humans.some(otherH => otherH.userData.isMelting);
+                if (!pairStillMelted) {
+                    logic.setMovementDisabled(false);
+                    logic.setGlobalMeltHuman(null);
 
-                // If it's Phase 1, we transition faster
-                if (logic.currentPhase === PHASES.VOID_PAIR) {
-                    setTimeout(() => logic.triggerPhaseTransition(setupEnvironment), 100);
+                    if (logic.currentPhase === PHASES.VOID_PAIR) {
+                        setTimeout(() => logic.triggerPhaseTransition(setupEnvironment), 100);
+                    } else if (logic.currentPhase === PHASES.CAVE_GROUP) {
+                        if (logic.dots.length === 0) {
+                            if (logic.isPhaseComplete) {
+                                logic.triggerPhaseTransition(setupEnvironment);
+                            } else {
+                                logic.spawn();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Despawn logic for Phase 1 (CAVE_GROUP)
+        if (logic.currentPhase === PHASES.CAVE_GROUP && h.userData.isEscaping && dist > 3000) {
+            scene.remove(dot); scene.remove(h); 
+            logic.dots.splice(i, 1);
+            const hIdx = logic.humans.indexOf(h);
+            if (hIdx !== -1) logic.humans.splice(hIdx, 1);
+
+            if (logic.dots.length === 0) {
+                if (logic.isPhaseComplete) {
+                    logic.triggerPhaseTransition(setupEnvironment);
                 } else {
-                    // Reset escaping state for everyone else so they can be melted
-                    if (logic.currentPhase === PHASES.CAVE_GROUP) {
-                        logic.humans.forEach(otherH => {
-                            otherH.userData.isEscaping = false;
-                            otherH.userData.escapeDecision = null; // Reset for new logs
-                        });
-                    }
-
-                    // In CAVE_GROUP, we transition when only 1 is left (the survivor)
-                    if (logic.currentPhase === PHASES.CAVE_GROUP && logic.dots.length === 1) {
-                        const survivorH = logic.dots[0].userData.human;
-                        logic.finalizeSurvivor(survivorH.userData.traits);
-                        logic.triggerPhaseTransition(setupEnvironment);
-                    } else if (logic.dots.length === 0) {
-                        logic.triggerPhaseTransition(setupEnvironment);
-                    }
+                    logic.spawn();
                 }
             }
         }
@@ -458,13 +479,19 @@ function animate() {
     logic.tentacles.forEach((t, i) => {
         if (activeGazeDot && !playerMoving) {
             t.mesh.visible = true; t.reach = THREE.MathUtils.lerp(t.reach, 1.0, delta * 1.5);
+            
+            // Determine target: 4 tentacles for the gazed human, 4 for its partner
+            const gazedH = activeGazeDot.userData.human;
+            const partnerH = gazedH.userData.partner;
+            const targetPos = (i < 4 || !partnerH) ? activeGazeDot.position : partnerH.position;
+
             const start = camera.position.clone();
-            const side = new THREE.Vector3(i<2?-140:140, -100+(i%2)*200, -100).applyQuaternion(camera.quaternion);
+            const side = new THREE.Vector3(i<4?-140:140, -100+(i%2)*200, -100).applyQuaternion(camera.quaternion);
             start.add(side);
             const pts = [];
             for(let j=0; j<=10; j++) {
                 const l = (j/10) * t.reach;
-                const p = new THREE.Vector3().lerpVectors(start, activeGazeDot.position, l);
+                const p = new THREE.Vector3().lerpVectors(start, targetPos, l);
                 const w = Math.sin(time*15 + (j/10)*6 + i) * (35*t.reach) * (1-Math.pow((j/10)-0.5, 2)*4);
                 p.x+=w; p.y+=w; pts.push(p);
             }
